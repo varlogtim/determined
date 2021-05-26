@@ -35,11 +35,11 @@ ap_southeast_2_master_ami:
   new: ami-052a251c7ca533c26
   old: ami-00d02a4b2cf1df2f4
 cuda_11_hashed:
-  new: determinedai/environments:cuda-11.0-pytorch-1.7-lightning-1.2-tf-2.4-gpu-606fd02
-  old: determinedai/environments:cuda-11.0-pytorch-1.7-lightning-1.2-tf-2.4-gpu-baefbf7
+  old: determinedai/environments:cuda-11.0-pytorch-1.7-lightning-1.2-tf-2.4-gpu-606fd02
+  new: determinedilia/environments:cuda-11.2-pytorch-1.7-lightning-1.2-tf-2.5-gpu-7dc43c3
 cuda_11_versioned:
-  new: determinedai/environments:cuda-11.0-pytorch-1.7-lightning-1.2-tf-2.4-gpu-0.14.0
-  old: determinedai/environments:cuda-11.0-pytorch-1.7-lightning-1.2-tf-2.4-gpu-0.13.0
+  old: determinedai/environments:cuda-11.0-pytorch-1.7-lightning-1.2-tf-2.4-gpu-0.14.0
+  new: determinedilia/environments:cuda-11.2-pytorch-1.7-lightning-1.2-tf-2.5-gpu-7dc43c3
 eu_central_1_agent_ami:
   new: ami-06507631a864127f8
   old: ami-01478b9313c0e5b93
@@ -89,11 +89,11 @@ tf2_cpu_versioned:
   new: determinedai/environments:py-3.7-pytorch-1.7-lightning-1.2-tf-2.4-cpu-0.14.0
   old: determinedai/environments:py-3.7-pytorch-1.7-lightning-1.2-tf-2.4-cpu-0.13.0
 tf2_gpu_hashed:
-  new: determinedai/environments:cuda-11.0-pytorch-1.7-lightning-1.2-tf-2.4-gpu-1c26118
-  old: determinedai/environments:cuda-10.2-pytorch-1.7-lightning-1.2-tf-2.4-gpu-da9ba40
+  old: determinedai/environments:cuda-11.0-pytorch-1.7-lightning-1.2-tf-2.4-gpu-1c26118
+  new: determinedilia/environments:cuda-11.2-pytorch-1.7-lightning-1.2-tf-2.5-gpu-7dc43c3
 tf2_gpu_versioned:
-  new: determinedai/environments:cuda-11.0-pytorch-1.7-lightning-1.2-tf-2.4-gpu-0.12.0
-  old: determinedai/environments:cuda-10.2-pytorch-1.7-lightning-1.2-tf-2.4-gpu-0.11.0
+  old: determinedai/environments:cuda-11.0-pytorch-1.7-lightning-1.2-tf-2.4-gpu-0.12.0
+  new: determinedilia/environments:cuda-11.2-pytorch-1.7-lightning-1.2-tf-2.5-gpu-7dc43c3
 us_east_1_agent_ami:
   new: ami-067b90eb7fa89f5f7
   old: ami-021c69b710cd53d38

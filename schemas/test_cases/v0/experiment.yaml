@@ -32,7 +32,7 @@
       force_pull_image: false
       image:
         cpu: determinedai/environments:py-3.7-pytorch-1.7-lightning-1.2-tf-2.4-cpu-606fd02
-        gpu: determinedai/environments:cuda-11.0-pytorch-1.7-lightning-1.2-tf-2.4-gpu-606fd02
+        gpu: determinedilia/environments:cuda-11.2-pytorch-1.7-lightning-1.2-tf-2.5-gpu-7dc43c3
       pod_spec: null
       ports:
         qwer: 1234

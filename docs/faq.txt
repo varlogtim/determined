@@ -216,7 +216,7 @@ respectively:
 
 -  ``determinedai/environments:cuda-10.2-pytorch-1.7-tf-1.15-gpu-0.14.0``
    (default)
--  ``determinedai/environments:cuda-11.0-pytorch-1.7-lightning-1.2-tf-2.4-gpu-0.14.0``
+-  ``determinedilia/environments:cuda-11.2-pytorch-1.7-lightning-1.2-tf-2.5-gpu-7dc43c3``
 
 To change the container image used for an experiment, specify
 :ref:`environment.image <exp-environment-image>` in the experiment

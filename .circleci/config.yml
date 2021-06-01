@@ -1903,6 +1903,29 @@ workflows:
               slack-mentions: ["channel"]
               slack-channel: ["ml-ag"]
 
+      - test-e2e-gke-cuda-11:
+          name: test-e2e-gke-single-gpu-cuda-11
+          context: gcp
+          matrix:
+            parameters:
+              cluster-id-prefix: ["e2e-gpu"]
+              mark: ["e2e_gpu"]
+              parallelism: [1]
+              slack-mentions: ["${SLACK_USER_ID}"]
+
+      - test-e2e-gke-cuda-11:
+          name: test-e2e-gke-parallel-cuda-11
+          context: gcp
+          matrix:
+            parameters:
+              cluster-id-prefix: ["parallel"]
+              mark: ["parallel"]
+              parallelism: [1]
+              slack-mentions: ["${SLACK_USER_ID}"]
+              machine-type: ["n1-standard-32"]
+              gpus-per-machine: [4]
+              num-machines: [2]
+
       - request-k8-tests:
           type: approval
           filters: *upstream-feature-branch

@@ -9,5 +9,5 @@ const (
 // Default task environment docker image names.
 const (
 	DefaultCPUImage = "andazhou/environments:py-3.7-pytorch-1.8.1-lightning-1.2-tf-2.4-cpu-254d511"
-	DefaultGPUImage = "andazhou/environments:cuda-11.2-pytorch-1.8.1-lightning-1.2-tf.2.4-gpu-0.15.0 "
+	DefaultGPUImage = "andazhou/environments:cuda-11.2-pytorch-1.8.1-lightning-1.2-tf.2.4-gpu-0.15.0"
 )

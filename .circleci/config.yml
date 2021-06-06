@@ -615,7 +615,7 @@ commands:
           values-to-override: |
             detVersion=<<parameters.det-version>>,\
             maxSlotsPerPod=<<parameters.gpus-per-machine>>,\
-            taskContainerDefaults.cpuImage=andazhou/environments:cuda-11.1-pytorch-1.8.1-lightning-1.2-tf.2.4-gpu-254d511,\
+            taskContainerDefaults.cpuImage=andazhou/environments:cuda-11.2-pytorch-1.8.1-lightning-1.2-tf.2.4-gpu-0.15.0,\
             taskContainerDefaults.gpuImage=andazhou/environments:cuda-11.2-pytorch-1.8.1-lightning-1.2-tf.2.4-gpu-0.15.0,\
             checkpointStorage.type=gcs,\
             checkpointStorage.bucket=det-ci

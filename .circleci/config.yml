@@ -101,7 +101,7 @@ commands:
       - when:
           condition: <<parameters.tf2>>
           steps:
-            - run: docker pull andazhou/environments:py-3.7-pytorch-1.8.1-lightning-1.2-tf-2.4-cpu-254d511
+            - run: docker pull determinedai/environments:py-3.7-pytorch-1.8-lightning-1.2-tf-2.4-cpu-125e7dc
 
   login-docker:
     parameters:
@@ -615,8 +615,8 @@ commands:
           values-to-override: |
             detVersion=<<parameters.det-version>>,\
             maxSlotsPerPod=<<parameters.gpus-per-machine>>,\
-            taskContainerDefaults.cpuImage=andazhou/environments:cuda-11.1-pytorch-1.8.1-lightning-1.2-tf.2.4-gpu-254d511,\
-            taskContainerDefaults.gpuImage=andazhou/environments:cuda-11.1-pytorch-1.8.1-lightning-1.2-tf.2.4-gpu-254d511,\
+            taskContainerDefaults.cpuImage=determinedai/environments:cuda-11.1-pytorch-1.8-lightning-1.2-tf-2.4-gpu-0.9.0,\
+            taskContainerDefaults.gpuImage=determinedai/environments:cuda-11.1-pytorch-1.8-lightning-1.2-tf-2.4-gpu-0.9.0,\
             checkpointStorage.type=gcs,\
             checkpointStorage.bucket=det-ci
       - set-master-address-gke:
@@ -1550,8 +1550,8 @@ jobs:
       # "CUDA" environment variable is set to 11.
       # TODO: (DET-4918): we should ensure a consistent way to have tests that can run against
       # both major TensorFlow versions do so regularly (but not others).
-      TF1_GPU_IMAGE: andazhou/environments:cuda-11.1-pytorch-1.8.1-lightning-1.2-tf.2.4-gpu-254d511
-      TF2_GPU_IMAGE: andazhou/environments:cuda-11.1-pytorch-1.8.1-lightning-1.2-tf.2.4-gpu-254d511
+      TF1_GPU_IMAGE: determinedai/environments:cuda-11.1-pytorch-1.8-lightning-1.2-tf-2.4-gpu-0.9.0
+      TF2_GPU_IMAGE: determinedai/environments:cuda-11.1-pytorch-1.8-lightning-1.2-tf-2.4-gpu-0.9.0
       CUDA: 11
     steps:
       - checkout

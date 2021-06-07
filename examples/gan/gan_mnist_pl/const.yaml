@@ -16,5 +16,5 @@ searcher:
 entrypoint: model_def:GANTrial
 environment:
   image:
-    gpu: andazhou/environments:cuda-11.1-pytorch-1.8.1-lightning-1.2-tf.2.4-gpu-254d511
-    cpu: andazhou/environments:py-3.7-pytorch-1.8.1-lightning-1.2-tf-2.4-cpu-254d511
+    gpu: determinedai/environments:cuda-11.1-pytorch-1.8-lightning-1.2-tf-2.4-gpu-0.9.0
+    cpu: determinedai/environments:py-3.7-pytorch-1.8-lightning-1.2-tf-2.4-cpu-125e7dc

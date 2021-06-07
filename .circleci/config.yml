@@ -615,8 +615,8 @@ commands:
           values-to-override: |
             detVersion=<<parameters.det-version>>,\
             maxSlotsPerPod=<<parameters.gpus-per-machine>>,\
-            taskContainerDefaults.cpuImage=andazhou/environments:cuda-11.2-pytorch-1.8.1-lightning-1.2-tf.2.4-gpu-0.15.0,\
-            taskContainerDefaults.gpuImage=andazhou/environments:cuda-11.2-pytorch-1.8.1-lightning-1.2-tf.2.4-gpu-0.15.0,\
+            taskContainerDefaults.cpuImage=andazhou/cuda11.1-no-torch-ext,\
+            taskContainerDefaults.gpuImage=andazhou/cuda11.1-no-torch-ext,\
             checkpointStorage.type=gcs,\
             checkpointStorage.bucket=det-ci
       - set-master-address-gke:
@@ -1550,8 +1550,8 @@ jobs:
       # "CUDA" environment variable is set to 11.
       # TODO: (DET-4918): we should ensure a consistent way to have tests that can run against
       # both major TensorFlow versions do so regularly (but not others).
-      TF1_GPU_IMAGE: andazhou/environments:cuda-11.2-pytorch-1.8.1-lightning-1.2-tf.2.4-gpu-0.15.0
-      TF2_GPU_IMAGE: andazhou/environments:cuda-11.2-pytorch-1.8.1-lightning-1.2-tf.2.4-gpu-0.15.0
+      TF1_GPU_IMAGE: andazhou/cuda11.1-no-torch-ext
+      TF2_GPU_IMAGE: andazhou/cuda11.1-no-torch-ext
       CUDA: 11
     steps:
       - checkout

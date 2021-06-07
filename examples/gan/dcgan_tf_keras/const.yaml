@@ -16,4 +16,4 @@ environment:
   # This model only works with Tensorflow 2.2+.
   image:
     cpu: "andazhou/environments:py-3.7-pytorch-1.8.1-lightning-1.2-tf-2.4-cpu-254d511"
-    gpu: "andazhou/environments:cuda-11.2-pytorch-1.8.1-lightning-1.2-tf.2.4-gpu-0.15.0"
+    gpu: "andazhou/cuda11.1-no-torch-ext"

@@ -463,6 +463,16 @@ service Determined {
       tags: [ "Profiler" ]
     };
   }
+  // Stream the available series in a trial's profiler metrics.
+  rpc GetTrialProfilerSummary(GetTrialProfilerSummaryRequest)
+      returns (stream GetTrialProfilerSummaryResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/trials/{trial_id}/profiler/summary"
+    };
+    option (grpc.gateway.protoc_gen_swagger.options.openapiv2_operation) = {
+      tags: [ "Profiler" ]
+    };
+  }
   // Persist the given TrialProfilerMetricsBatch. The trial ID is in the labels.
   rpc PostTrialProfilerMetricsBatch(PostTrialProfilerMetricsBatchRequest)
       returns (PostTrialProfilerMetricsBatchResponse) {

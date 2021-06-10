@@ -262,6 +262,27 @@ message GetTrialProfilerAvailableSeriesResponse {
   repeated determined.trial.v1.TrialProfilerMetricLabels labels = 1;
 }
 
+
+// Stream a summary of the profiling
+message GetTrialProfilerSummaryRequest {
+  option (grpc.gateway.protoc_gen_swagger.options.openapiv2_schema) = {
+    json_schema: { required: [ "trial_id" ] }
+  };
+  // The requested trial's id.
+  int32 trial_id = 1;
+  // Continue streaming labels until the trial stops. Defaults to False.
+  bool follow = 2;
+}
+// Response to GetTrialProfilerSummaryRequest.
+message GetTrialProfilerSummaryResponse {
+  option (grpc.gateway.protoc_gen_swagger.options.openapiv2_schema) = {
+    json_schema: { required: [ "summary" ] }
+  };
+  // The profiling summary.
+  determined.trial.v1.ProfilingSummary summary = 1;
+}
+
+
 // Create a batch of trial profiler metrics.
 message PostTrialProfilerMetricsBatchRequest {
   option (grpc.gateway.protoc_gen_swagger.options.openapiv2_schema) = {

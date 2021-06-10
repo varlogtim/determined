@@ -215,7 +215,7 @@ message CheckpointMetadata {
   };
   // The ID of the trial associated with the checkpoint.
   int32 trial_id = 1;
-  // The run of the trial assocaited with the checkpoint.
+  // The run of the trial associated with the checkpoint.
   int32 trial_run_id = 2;
   // UUID of the checkpoint.
   string uuid = 3;
@@ -233,4 +233,36 @@ message CheckpointMetadata {
   int32 total_records = 9;
   // The number of epochs trained on when these metrics were reported.
   float total_epochs = 10;
+}
+
+// The checkpoint metadata for some trial checkpoint.
+message ProfilingSummary {
+  option (grpc.gateway.protoc_gen_swagger.options.openapiv2_schema) = {
+    json_schema: {
+      required: [
+        "throughput_summary"
+      ]
+    }
+  };
+  // The ID of the trial associated with the checkpoint.
+  ProfilingThroughputSummary throughput_summary = 1;
+}
+
+
+// A summary of training throughput for at-a-glance understanding of throughput.
+message ProfilingThroughputSummary {
+  option (grpc.gateway.protoc_gen_swagger.options.openapiv2_schema) = {
+    json_schema: {
+      required: [
+        "average"
+      ]
+    }
+  };
+  // The average throughput of training over recent batches in samples per second. The specific window
+  // over which this average is provided is subject to change.
+  float average = 1;
+  // Whether the average throughput has stabilized and can be relied upon to be representative. This
+  // should be false when throughput is changing significantly over time, which often happens during
+  // the early stages of training. This is determined via heuristics and is a best-effort guess.
+  bool is_stable = 2;
 }

@@ -497,6 +497,87 @@ func (a *apiServer) GetTrialProfilerAvailableSeries(
 	).Run(resp.Context())
 }
 
+
+
+
+func (a *apiServer) GetTrialProfilerSummary(
+	req *apiv1.GetTrialProfilerSummaryRequest,
+	resp apiv1.Determined_GetTrialProfilerSummaryServer,
+) error {
+	fmt.Println("GetTrialProfilerSummary")
+
+	switch exists, err := a.m.db.CheckTrialExists(int(req.TrialId)); {
+	case err != nil:
+		return err
+	case !exists:
+		return trialNotFound
+	}
+
+	var summary trialv1.ProfilingThroughputSummary
+	err := a.m.db.QueryProto(
+		"get_trial_profiler_summary",
+		&summary)
+
+	//err := a.m.db.QueryProto(
+	//	"get_trial_profiler_summary",
+	//	&summary, fmt.Sprintf(`{"trialId": %d}`, 91),
+	//	//&summary, fmt.Sprintf(`{"trialId": %d}`, req.TrialId),
+	//)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(summary.Average)
+	fmt.Println(summary.IsStable)
+
+	responseToSend := &apiv1.GetTrialProfilerSummaryResponse{
+		Summary: &trialv1.ProfilingSummary{
+			ThroughputSummary: &summary,
+		},
+	}
+	err = resp.Send(responseToSend)
+	if err != nil {
+		panic(err)
+	}
+	//
+	//resp.Send(&apiv1.GetTrialProfilerSummaryResponse{
+	//	Summary: *trialv1.ProfilingSummary{
+	//		ThroughputSummary: *summary,
+	//	}
+	//}
+	//	)
+
+
+
+	return nil
+
+
+
+	//
+	//fetch := func(_ api.BatchRequest) (api.Batch, error) {
+	//	var labels apiv1.GetTrialProfilerAvailableSeriesResponse
+	//	return api.ToBatchOfOne(&labels), a.m.db.QueryProto(
+	//		"get_trial_available_series",
+	//		&labels, fmt.Sprintf(`{"trialId": %d}`, req.TrialId),
+	//	)
+	//}
+	//
+	//onBatch := func(b api.Batch) error {
+	//	return b.ForEach(func(r interface{}) error {
+	//		return resp.Send(r.(*apiv1.GetTrialProfilerAvailableSeriesResponse))
+	//	})
+	//}
+	//
+	//return api.NewBatchStreamProcessor(
+	//	api.BatchRequest{Follow: req.Follow},
+	//	fetch,
+	//	onBatch,
+	//	a.isTrialTerminalFunc(int(req.TrialId), 10),
+	//	TrialAvailableSeriesBatchWaitTime,
+	//).Run(resp.Context())
+
+}
+
 func (a *apiServer) PostTrialProfilerMetricsBatch(
 	_ context.Context,
 	req *apiv1.PostTrialProfilerMetricsBatchRequest,
@@ -546,6 +627,9 @@ func (a *apiServer) PostTrialProfilerMetricsBatch(
 	}
 	return &apiv1.PostTrialProfilerMetricsBatchResponse{}, errs.ErrorOrNil()
 }
+
+
+
 
 func (a *apiServer) TrialPreemptionSignal(
 	req *apiv1.TrialPreemptionSignalRequest,

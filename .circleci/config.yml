@@ -477,7 +477,7 @@ commands:
       - run:
           name: Delete Helm release
           when: always
-          command: helm delete release ci
+          command: helm delete ci
       - run:
           name: Terminate GKE Cluster
           when: always

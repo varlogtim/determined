@@ -1,4 +1,10 @@
-SELECT 1.0 AS average, TRUE AS is_stable;
+SELECT
+--         labels -> 'trialId' as trialId,
+        *
+FROM trial_profiler_metrics
+WHERE labels @> '{"trialId":5,"name":"net_throughput_recv"}'::jsonb
+ORDER BY batches[0]
+LIMIT 100;
 
 -- SELECT
 --     array_to_json(m.values) AS values,

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"github.com/determined-ai/determined/proto/pkg/trialv1"
 	"time"
 
 	"github.com/pkg/errors"

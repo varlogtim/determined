@@ -7,7 +7,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/determined-ai/determined/master/pkg/model"
-	"github.com/determined-ai/determined/proto/pkg/trialv1"
 )
 
 // InsertTrialProfilerMetricsBatch inserts a batch of metrics into the database.
@@ -23,6 +22,42 @@ VALUES ($1, $2, $3, $4)
 
 // GetTrialProfilerMetricsBatches gets a batch of profiler metric batches from the database.
 func (db *PgDB) GetTrialProfilerMetricsBatches(
+	labelsJSON []byte, offset, limit int,
+) (model.TrialProfilerMetricsBatchBatch, error) {
+	rows, err := db.sql.Queryx(`
+SELECT
+--         labels -> 'trialId' as trialId,
+        *
+FROM trial_profiler_metrics
+WHERE labels @> '{"trialId":5,"name":"net_throughput_recv"}'::jsonb
+ORDER BY batches[0]
+LIMIT 100;`, labelsJSON, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var pBatches []*trialv1.TrialProfilerMetricsBatch
+	for rows.Next() {
+		var batch model.TrialProfilerMetricsBatch
+		if err := rows.StructScan(&batch); err != nil {
+			return nil, errors.Wrap(err, "querying profiler metric batch")
+		}
+
+		pBatch, err := batch.ToProto()
+		if err != nil {
+			return nil, errors.Wrap(err, "converting batch to protobuf")
+		}
+
+		pBatches = append(pBatches, pBatch)
+	}
+	return pBatches, nil
+}
+
+
+
+// GetTrialProfilerMetricsBatches gets a batch of profiler metric batches from the database.
+func (db *PgDB) GetRecentTrialProfilerMetricsBatches(
 	labelsJSON []byte, offset, limit int,
 ) (model.TrialProfilerMetricsBatchBatch, error) {
 	rows, err := db.sql.Queryx(`

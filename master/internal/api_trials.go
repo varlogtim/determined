@@ -501,41 +501,6 @@ func (a *apiServer) GetTrialProfilerAvailableSeries(
 
 
 
-// GetTrialProfilerMetricsBatches gets a batch of profiler metric batches from the database.
-func (db *PgDB) GetTrialProfilerMetricsBatches(
-	labelsJSON []byte, offset, limit int,
-) (model.TrialProfilerMetricsBatchBatch, error) {
-	rows, err := db.sql.Queryx(`
-SELECT
-    m.values AS values,
-    m.batches AS batches,
-    m.ts AS timestamps,
-    m.labels AS labels
-FROM trial_profiler_metrics m
-WHERE m.labels @> $1::jsonb
-ORDER by m.id
-OFFSET $2 LIMIT $3`, labelsJSON, offset, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var pBatches []*trialv1.TrialProfilerMetricsBatch
-	for rows.Next() {
-		var batch model.TrialProfilerMetricsBatch
-		if err := rows.StructScan(&batch); err != nil {
-			return nil, errors.Wrap(err, "querying profiler metric batch")
-		}
-
-		pBatch, err := batch.ToProto()
-		if err != nil {
-			return nil, errors.Wrap(err, "converting batch to protobuf")
-		}
-
-		pBatches = append(pBatches, pBatch)
-	}
-	return pBatches, nil
-}
 
 
 
@@ -553,12 +518,13 @@ func (a *apiServer) GetTrialProfilerSummary(
 	}
 
 	var summary trialv1.ProfilingThroughputSummary
-	summaryRows := []*trialv1.TrialProfilerMetricsBatch{}
-	err := a.m.db.QueryProto(
-		"get_trial_profiler_summary",
-		&summaryRows)
-
-	fmt.Println(summaryRows)
+	//a.m.db.GetTrialProfilerMetricsBatches(labelsJSON, lr.Offset, lr.Limit)
+	//summaryRows := []*trialv1.TrialProfilerMetricsBatch{}
+	//err := a.m.db.QueryProto(
+	//	"get_trial_profiler_summary",
+	//	&summaryRows)
+	//
+	//fmt.Println(summaryRows)
 
 	//err := a.m.db.QueryProto(
 	//	"get_trial_profiler_summary",

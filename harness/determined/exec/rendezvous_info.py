@@ -15,10 +15,9 @@ if __name__ == "__main__":
 
     cert = certs.default_load(master_url)
 
-    r = api.post(
+    r = api.get(
         master_url,
-        path=f"/api/v1/trials/{trial_id}/rendezvous_info",
-        body=container_id,
+        path=f"/api/v1/trials/{trial_id}/rendezvous_info/{container_id}",
         cert=cert,
     )
 

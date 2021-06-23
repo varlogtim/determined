@@ -9,6 +9,7 @@ from determined.common import check
 from determined import _searcher
 from determined import _training
 from determined import _checkpointing
+from determined import _preemption
 
 WorkloadStreamElem = Tuple[workload.Workload, workload.ResponseFunc]
 
@@ -87,9 +88,11 @@ class WorkloadSequencer(workload.Source):
         self,
         env: det.EnvContext,
         session,
+        dist,
     ) -> None:
         self.env = env
         self.session = session
+        self._dist = dist
         # XXX use a real run_id
         run_id = 0
         self.training = _training.Training(session, env.det_trial_id, run_id)
@@ -149,8 +152,9 @@ class WorkloadSequencer(workload.Source):
             return max((epochs * self.records_per_epoch) // self.global_batch_size, 1)
 
     def check_for_preemption(self):
-        # XXX: support preemption
-        return
+        assert self.preemption is not None
+        if self.preemption.should_preempt():
+            raise ShouldExit()
 
     def train(self, num_batches: int) -> WorkloadGenerator:
         # report a train step is starting
@@ -273,10 +277,10 @@ class WorkloadSequencer(workload.Source):
         if exited_reason == "INVALID_HP":
             self.training.early_exit(_training.EarlyExitReason.INVALID_HP)
 
-        self.check_for_preemption()
-
         if exited_reason is not None:
             raise ShouldExit()
+
+        self.check_for_preemption()
 
     def terminate(self) -> Tuple[workload.Workload, workload.ResponseFunc]:
         wkld = workload.Workload(
@@ -312,6 +316,8 @@ class WorkloadSequencer(workload.Source):
         return self.state.last_val == self.state.batches_completed
 
     def __iter__(self) -> workload.Stream:
+        self.preemption = _preemption.Preemption(self.session, self.env.det_trial_id, self._dist)
+        self.preemption.start()
         try:
             searcher = _searcher.AdvancedSearcher(self.session, self.env.det_trial_id)
 
@@ -371,6 +377,8 @@ class WorkloadSequencer(workload.Source):
             pass
 
         finally:
+            self.preemption.close()
+
             # Checkpoint unsaved work.
             if not self.checkpoint_is_current():
                 yield from self.checkpoint(already_exiting=True)
@@ -388,22 +396,28 @@ def make_compatibility_workloads(session, env, dist) -> workload.Stream:
 
     if dist.get_rank() == 0:
         # Workloads are generated only on the chief worker.
-        for x in WorkloadSequencer(env, session):
+        for x in WorkloadSequencer(env, session, dist):
             # Distribute to peers.
             _ = dist._zmq_broadcast(x)
             # Process workload.
-            yield x
-            # Wait for peers.
-            _ = dist._zmq_gather(None)
-        # Done.
-        dist._zmq_broadcast(None)
+            try:
+                yield x
+            finally:
+                # Wait for peers.
+                _ = dist._zmq_gather(None)
     else:
         while True:
             # Wait for chief to broadcast workload.
             x = dist._zmq_broadcast(None)
             if x is None:
                 break
-            # Process workload.
-            yield x
-            # Tell chief we finished.
-            _ = dist._zmq_gather(None)
+            try:
+                # Process workload.
+                yield x
+            finally:
+                # Tell chief we finished.
+                _ = dist._zmq_gather(None)
+
+    # XXX: Force-fail the trial so the trial actor dies, until golang WorkloadSequencer removal.
+    print("FINISHED WORKLOAD SEQUENCER")
+    1/0

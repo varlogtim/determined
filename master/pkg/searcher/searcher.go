@@ -19,7 +19,6 @@ import (
 type (
 	// SearcherState encapsulates all persisted searcher state.
 	SearcherState struct {
-		TrialOperations     OperationList                          `json:"trial_operations"`
 		TrialsRequested     int                                    `json:"trials_requested"`
 		TrialsClosed        map[model.RequestID]bool               `json:"trials_closed"`
 		TrialIDs            map[model.RequestID]int                `json:"trial_ids"`
@@ -190,7 +189,6 @@ func (s *Searcher) RequestID(id int) (model.RequestID, bool) {
 
 // Record records operations that were requested by the searcher for a specific trial.
 func (s *Searcher) Record(ops []Operation) {
-	s.TrialOperations = append(s.TrialOperations, ops...)
 	for _, op := range ops {
 		switch op.(type) {
 		case Create:

@@ -99,14 +99,14 @@ func (m *Master) restoreExperiment(expModel *model.Experiment) error {
 // restoreTrial takes the a searcher.Create and attempts to restore the trial that would be
 // associated with it. On failure, the trial is just reset to the start and errors are logged.
 func (e *experiment) restoreTrial(
-	ctx *actor.Context, op searcher.Create, ckpt *model.Checkpoint, ops []searcher.Operation,
+	ctx *actor.Context, ckpt *model.Checkpoint, state TrialSearcherState,
 ) (terminal bool) {
-	l := ctx.Log().WithField("request-id", op.RequestID)
+	l := ctx.Log().WithField("request-id", state.Create.RequestID)
 	l.Info("restoring trial")
 
 	var trialID *int
 	var snapshot []byte
-	switch trial, err := e.db.TrialByExperimentAndRequestID(e.ID, op.RequestID); {
+	switch trial, err := e.db.TrialByExperimentAndRequestID(e.ID, state.Create.RequestID); {
 	case errors.Cause(err) == db.ErrNotFound:
 		l.Info("trial was never previously allocated")
 	case err != nil:
@@ -125,30 +125,29 @@ func (e *experiment) restoreTrial(
 			l.Infof("cannot restore trial in state: %s", trial.State)
 			return true
 		}
-		if snapshot, err = e.retrieveTrialSnapshot(l, op); err != nil {
+		if snapshot, err = e.retrieveTrialSnapshot(l, state.Create); err != nil {
 			l.Warnf("failed to retrieve trial snapshot, restarting fresh: %s", err)
 		}
 	}
 
 	config := schemas.Copy(e.Config).(expconf.ExperimentConfig)
-	t := newTrial(e, config, op, ckpt)
+	t := newTrial(e, config, ckpt, state)
 	if trialID != nil {
 		t.processID(*trialID)
 	}
-	t.processOperations(ops)
 	if snapshot != nil {
 		if err := t.Restore(snapshot); err != nil {
 			l.WithError(err).Warn("failed to restore trial, restarting fresh")
 			// Just new up the trial again in case restore half-worked.
-			t = newTrial(e, config, op, ckpt)
+			t = newTrial(e, config, ckpt, state)
 			if trialID != nil {
 				t.processID(*trialID)
 			}
 		}
 	}
 	t.replayCreate = trialID != nil && snapshot == nil
-	ctx.ActorOf(op.RequestID, t)
-	l.Infof("restored trial to the beginning of step %d", t.sequencer.CurStepID)
+	ctx.ActorOf(state.Create.RequestID, t)
+	l.Infof("restored trial")
 	return false
 }
 

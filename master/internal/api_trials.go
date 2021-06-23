@@ -583,8 +583,8 @@ func (a *apiServer) GetCurrentTrialSearcherOperation(
 		return nil, err
 	}
 
-	var resp searcher.ValidateAfter
-	if err := a.askAtDefaultSystem(exp, trialGetCurrentOperation{
+	var resp TrialSearcherState
+	if err := a.askAtDefaultSystem(exp, trialGetSearcherState{
 		trialID: int(req.TrialId),
 	}, &resp); err != nil {
 		return nil, err
@@ -593,7 +593,7 @@ func (a *apiServer) GetCurrentTrialSearcherOperation(
 	return &apiv1.GetCurrentTrialSearcherOperationResponse{
 		Op: &experimentv1.SearcherOperation{
 			Union: &experimentv1.SearcherOperation_ValidateAfter{
-				ValidateAfter: resp.ToProto(),
+				ValidateAfter: resp.Op.ToProto(),
 			},
 		},
 	}, nil

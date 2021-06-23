@@ -15,28 +15,22 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
-
-	"github.com/determined-ai/determined/master/pkg/schemas"
-	"github.com/determined-ai/determined/master/pkg/schemas/expconf"
-	"github.com/determined-ai/determined/master/pkg/workload"
 
 	apiutils "github.com/determined-ai/determined/master/internal/api"
 	"github.com/determined-ai/determined/master/internal/db"
 	"github.com/determined-ai/determined/master/internal/sproto"
 	"github.com/determined-ai/determined/master/pkg/actor"
 	"github.com/determined-ai/determined/master/pkg/actor/actors"
-	"github.com/determined-ai/determined/master/pkg/actor/api"
 	aproto "github.com/determined-ai/determined/master/pkg/agent"
 	"github.com/determined-ai/determined/master/pkg/archive"
 	cproto "github.com/determined-ai/determined/master/pkg/container"
 	"github.com/determined-ai/determined/master/pkg/etc"
 	"github.com/determined-ai/determined/master/pkg/model"
-	"github.com/determined-ai/determined/master/pkg/searcher"
+	"github.com/determined-ai/determined/master/pkg/schemas"
+	"github.com/determined-ai/determined/master/pkg/schemas/expconf"
 	"github.com/determined-ai/determined/master/pkg/ssh"
 	"github.com/determined-ai/determined/master/pkg/tasks"
-	"github.com/determined-ai/determined/master/pkg/union"
 )
 
 const (
@@ -76,22 +70,12 @@ const (
 	// configuration file.
 	trialSSHConfigFile = "/etc/ssh/ssh_config"
 	trialSSHConfigMode = 0644
-
-	pushArchitectureEnabled = true
 )
 
 // Trial-specific actor messages.
 type (
 	killTrial    struct{}
 	trialAborted struct{}
-
-	// This message is used to synchronize the trial workload sequencer with the searcher. It allows
-	// the searcher to get more operations to the trial workload sequencer as a result of the trial
-	// completing a searcher operation before the trial decides to tell the scheduler it is
-	// done, since stopping and restarting trials has relatively high overhead.
-	sendNextWorkload struct {
-		runID int
-	}
 
 	// It is possible that it takes very long for all containers to be connected after the first
 	// container is connected. This might happen when the k8s cluster waits for new instances
@@ -107,11 +91,6 @@ type (
 	// running containers.
 	terminateTimeout struct{ runID int }
 
-	containerConnected struct {
-		ContainerID cproto.ID
-		socket      *websocket.Conn
-	}
-
 	// trialWatchRendezvousInfoReq begins watching for rendezvous info.
 	// When all the containers are ready, the trial will send all the
 	// peer addresses on the channel in the response.
@@ -125,35 +104,6 @@ type (
 	}
 	unwatchRendezvousInfo struct{ containerID cproto.ID }
 )
-
-// Trial-specific external messages.
-type trialMessage struct {
-	RendezvousInfo *rendezvousInfoMessage `union:"type,RENDEZVOUS_INFO" json:"-"`
-	RunWorkload    *runWorkload           `union:"type,RUN_WORKLOAD" json:"-"`
-}
-
-func (m trialMessage) MarshalJSON() ([]byte, error) {
-	return union.Marshal(m)
-}
-
-func (m *trialMessage) UnmarshalJSON(data []byte) error {
-	if err := union.Unmarshal(data, m); err != nil {
-		return err
-	}
-
-	type DefaultParser *trialMessage
-
-	return errors.Wrap(json.Unmarshal(data, DefaultParser(m)), "failed to parse trial message")
-}
-
-type rendezvousInfoMessage struct {
-	Addrs []string `json:"addrs"`
-	Rank  int      `json:"rank"`
-}
-
-type runWorkload struct {
-	Workload workload.Workload `json:"workload"`
-}
 
 // terminatedContainerWithState records the terminatedContainer message with some state about the
 // trial at the time termination was received. That information is analyzed when determining if a
@@ -213,8 +163,6 @@ type (
 
 		warmStartCheckpoint *model.Checkpoint
 
-		close  *searcher.Close
-
 		// The following fields tracks the interaction with the resource providers.
 		// The existence of task signifies the trial has requested to be allocated.
 		task *sproto.AllocateRequest
@@ -227,7 +175,6 @@ type (
 		containers                 map[cproto.ID]cproto.Container // only for running containers.
 		containerRanks             map[cproto.ID]int              // only for launched containers.
 		containerAddresses         map[cproto.ID][]cproto.Address // only for running containers.
-		containerSockets           map[cproto.ID]*actor.Ref       // only for running containers.
 		terminatedContainers       map[cproto.ID]terminatedContainerWithState
 		// tracks if allReady check has passed successfully.
 		allReadySucceeded bool
@@ -243,7 +190,7 @@ type (
 		// Map of container ID to watcher ID a rendezvous info listener.
 		rendezvousWatchers map[cproto.ID]chan<- rendezvousInfoOrError
 
-		trialSearcherState TrialSearcherState `json:"TrialSearcherState"`
+		trialSearcherState TrialSearcherState
 	}
 )
 
@@ -269,7 +216,6 @@ func newTrial(
 		containers:           make(map[cproto.ID]cproto.Container),
 		containerRanks:       make(map[cproto.ID]int),
 		containerAddresses:   make(map[cproto.ID][]cproto.Address),
-		containerSockets:     make(map[cproto.ID]*actor.Ref),
 		terminatedContainers: make(map[cproto.ID]terminatedContainerWithState),
 
 		agentUserGroup: exp.agentUserGroup,
@@ -659,18 +605,6 @@ func formatAddress(p cproto.Address) string {
 	return fmt.Sprintf("%s:%d", p.HostIP, p.HostPort)
 }
 
-func (t *trial) killAndRemoveSocket(ctx *actor.Context, id cproto.ID) {
-	if skt, ok := t.containerSockets[id]; ok {
-		addr := skt.Address().Local()
-		if ref := ctx.Child(addr); ref != nil {
-			if ok := ctx.Kill(addr); !ok {
-				ctx.Log().Warnf("failed to kill container socket: %s", id)
-			}
-		}
-		delete(t.containerSockets, id)
-	}
-}
-
 // allReady returns true if and only if all the containers are reported to be started with the
 // ContainerStarted message and their sockets to be connected with the containerConnected
 // message. The two messages are not guaranteed to come in-order. During each run of the
@@ -683,19 +617,10 @@ func (t *trial) allReady() bool {
 		return true
 	}
 
-	if pushArchitectureEnabled {
-		allAddressesArrived := len(t.containerAddresses) == len(t.allocations)
-		allWaiting := len(t.rendezvousWatchers) == len(t.allocations)
+	allAddressesArrived := len(t.containerAddresses) == len(t.allocations)
+	allWaiting := len(t.rendezvousWatchers) == len(t.allocations)
 
-		t.allReadySucceeded = allAddressesArrived && allWaiting
-	} else {
-		// Ensure all ContainerStarted messages have arrived.
-		if len(t.containers) < len(t.allocations) {
-			return false
-		}
-		// Finally, ensure all sockets have connected.
-		t.allReadySucceeded = len(t.containerSockets) == len(t.allocations)
-	}
+	t.allReadySucceeded = allAddressesArrived && allWaiting
 	return t.allReadySucceeded
 }
 
@@ -705,31 +630,19 @@ func (t *trial) pushRendezvous(ctx *actor.Context) {
 	caddrs, raddrs, err := t.rendezvousInfo(ctx)
 	for _, caddr := range caddrs {
 		c := caddr.container
-		if pushArchitectureEnabled {
-			w := t.rendezvousWatchers[c.ID]
-			if err != nil {
-				w <- rendezvousInfoOrError{err: err}
-			} else {
-				w <- rendezvousInfoOrError{
-					info: &trialv1.RendezvousInfo{
-						Addresses: raddrs,
-						Rank:      int32(t.containerRanks[c.ID]),
-					},
-				}
-			}
-			close(w)
-			delete(t.rendezvousWatchers, c.ID)
+		w := t.rendezvousWatchers[c.ID]
+		if err != nil {
+			w <- rendezvousInfoOrError{err: err}
 		} else {
-			socket := t.containerSockets[c.ID]
-			if err := api.WriteSocketJSON(ctx, socket, &trialMessage{
-				RendezvousInfo: &rendezvousInfoMessage{
-					Addrs: raddrs,
-					Rank:  caddr.ordinal,
+			w <- rendezvousInfoOrError{
+				info: &trialv1.RendezvousInfo{
+					Addresses: raddrs,
+					Rank:      int32(t.containerRanks[c.ID]),
 				},
-			}); err != nil {
-				ctx.Log().WithError(err).Error("cannot write to socket")
 			}
 		}
+		close(w)
+		delete(t.rendezvousWatchers, c.ID)
 	}
 }
 
@@ -833,8 +746,6 @@ func (t *trial) processContainerTerminated(
 	_, ok := t.containers[msg.Container.ID]
 	delete(t.containers, msg.Container.ID)
 	delete(t.containerAddresses, msg.Container.ID)
-
-	t.killAndRemoveSocket(ctx, msg.Container.ID)
 
 	exitMsg := msg.ContainerStopped.String()
 	t.insertLog(ctx, msg.Container, exitMsg)

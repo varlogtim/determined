@@ -1692,7 +1692,7 @@ WHERE run_type = 'TRIAL'
 	case err != nil:
 		return errors.Wrap(err, "querying current run")
 	case int(runID) != cRunID:
-		return api.AsErrBadRequest("invalid run id, %d != %d", runID, cRunID)
+		return api.AsValidationError("invalid run id, %d != %d", runID, cRunID)
 	default:
 		return nil
 	}

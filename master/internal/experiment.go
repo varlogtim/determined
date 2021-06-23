@@ -44,9 +44,6 @@ type (
 		requestID model.RequestID
 		progress  model.PartialUnits
 	}
-	trialQueryIsBestValidation struct {
-		validationMetrics workload.ValidationMetrics
-	}
 
 	// Searcher-related messages.
 	trialGetSearcherState struct {
@@ -192,51 +189,42 @@ func (e *experiment) Receive(ctx *actor.Context) error {
 
 		if e.restored {
 			e.restoreTrials(ctx)
-		} else {
-			ops, err := e.searcher.InitialOperations()
-			if err != nil {
-				return errors.Wrap(err, "failed to generate initial operations")
-			}
-			e.processOperations(ctx, ops, nil)
-			ctx.Tell(e.hpImportance, hpimportance.ExperimentCreated{ID: e.ID})
+			return nil
 		}
-		// Since e.searcher.TrialOperations should have all trials that were previously
-		// allocated, we can stop trying to restore new trials after processing these.
-		e.restored = false
+
+		ops, err := e.searcher.InitialOperations()
+		if err != nil {
+			return errors.Wrap(err, "failed to generate initial operations")
+		}
+		e.processOperations(ctx, ops, nil)
+		ctx.Tell(e.hpImportance, hpimportance.ExperimentCreated{ID: e.ID})
 	case trialCreated:
 		ops, err := e.searcher.TrialCreated(msg.create, msg.trialID)
 		e.processOperations(ctx, ops, err)
 	case trialCompleteOperation:
-		var err error
-		state, ok := e.TrialSearcherState[msg.op.RequestID]
-		switch {
+		switch state, ok := e.TrialSearcherState[msg.op.RequestID]; {
 		case !ok:
-			err = api.AsErrBadRequest("no such trial")
+			ctx.Respond(api.AsValidationError("no such trial"))
+			return nil
 		case msg.op != state.Op:
-			err = api.AsErrBadRequest("expected op %v but received op %v", state.Op, msg.op)
+			ctx.Respond(api.AsValidationError("expected op %v but received op %v", state.Op, msg.op))
+			return nil
 		case state.Complete:
-			err = api.AsErrBadRequest("received op %v which was previously completed", msg.op)
-		}
-		if err != nil {
-			if ctx.ExpectingResponse() {
-				ctx.Respond(err)
-			}
+			ctx.Respond(api.AsValidationError("received op %v which was previously completed", msg.op))
 			return nil
 		}
 
+		state := e.TrialSearcherState[msg.op.RequestID]
 		state.Complete = true
 		e.TrialSearcherState[msg.op.RequestID] = state
 		ops, err := e.searcher.ValidationCompleted(msg.trialID, msg.metric, msg.op)
 		e.processOperations(ctx, ops, err)
 	case trialReportEarlyExit:
-		defer e.snapshotAndSave(ctx)
 		ops, err := e.searcher.TrialExitedEarly(msg.trialID, msg.reason)
-		if err != nil && ctx.ExpectingResponse() {
+		if err != nil {
 			ctx.Respond(err)
 		}
 		e.processOperations(ctx, ops, err)
-	case trialQueryIsBestValidation:
-		ctx.Respond(e.isBestValidation(msg.validationMetrics))
 	case trialReportProgress:
 		e.searcher.SetTrialProgress(msg.requestID, msg.progress)
 		progress := e.searcher.Progress()
@@ -251,22 +239,17 @@ func (e *experiment) Receive(ctx *actor.Context) error {
 			return nil
 		}
 
-		var err error
 		state, ok := e.TrialSearcherState[requestID]
 		switch {
 		case !ok:
-			err = api.AsErrNotFound("trial %d has no operations", msg.trialID)
+			ctx.Respond(api.AsErrNotFound("trial %d has no operations", msg.trialID))
 		case state.Closed && state.Complete:
-			err = api.AsErrNotFound("trial %d was closed by searcher", msg.trialID)
+			ctx.Respond(api.AsErrNotFound("trial %d was closed by searcher", msg.trialID))
 		case state.Complete:
-			err = api.AsErrNotFound("trial %d has no uncompleted operations", msg.trialID)
+			ctx.Respond(api.AsErrNotFound("trial %d has no uncompleted operations", msg.trialID))
 		}
 
-		if err != nil {
-			ctx.Respond(err)
-		} else {
-			ctx.Respond(state)
-		}
+		ctx.Respond(state)
 	case actor.ChildFailed:
 		ctx.Log().WithError(msg.Error).Error("trial failed unexpectedly")
 		e.trialClosed(ctx, model.MustParseRequestID(msg.Child.Address().Local()))
@@ -416,18 +399,14 @@ func (e *experiment) trialClosed(ctx *actor.Context, requestID model.RequestID) 
 // restoreTrialsFromStates from the operations that were snapshotted with the
 // last experiment checkpoint.
 func (e *experiment) restoreTrials(ctx *actor.Context) {
-	for requestID, state := range e.TrialSearcherState {
+	for _, state := range e.TrialSearcherState {
 		checkpoint, err := e.checkpointForCreate(state.Create)
 		if err != nil {
 			e.updateState(ctx, model.StoppingErrorState)
 			ctx.Log().Error(err)
 			return
 		}
-		terminal := e.restoreTrial(ctx, checkpoint, state)
-		// In the event a trial is terminal and is not recorded in the searcher, replay the close.
-		if terminal && !e.searcher.TrialsClosed[requestID] {
-			ctx.Tell(ctx.Self(), trialClosed{requestID: requestID})
-		}
+		e.restoreTrial(ctx, checkpoint, state)
 	}
 }
 
@@ -479,6 +458,7 @@ func (e *experiment) processOperations(
 			panic(fmt.Sprintf("unexpected operation: %v", op))
 		}
 	}
+
 	for requestID := range updatedTrials {
 		ctx.Tell(ctx.Child(requestID), e.TrialSearcherState[requestID])
 	}
@@ -500,23 +480,6 @@ func (e *experiment) checkpointForCreate(op searcher.Create) (*model.Checkpoint,
 		checkpoint = checkpointModel
 	}
 	return checkpoint, nil
-}
-
-func (e *experiment) isBestValidation(metrics workload.ValidationMetrics) bool {
-	metricName := e.Config.Searcher().Metric()
-	validation, err := metrics.Metric(metricName)
-	if err != nil {
-		// TODO: Better error handling here.
-		return false
-	}
-	smallerIsBetter := e.Config.Searcher().SmallerIsBetter()
-	isBest := (e.BestValidation == nil) ||
-		(smallerIsBetter && validation <= *e.BestValidation) ||
-		(!smallerIsBetter && validation >= *e.BestValidation)
-	if isBest {
-		e.BestValidation = &validation
-	}
-	return isBest
 }
 
 func (e *experiment) updateState(ctx *actor.Context, state model.State) bool {

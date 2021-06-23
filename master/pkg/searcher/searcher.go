@@ -100,7 +100,7 @@ func (s *Searcher) TrialExitedEarly(
 	}
 
 	if s.Exits[requestID] {
-		return nil, api.AsErrBadRequest("trial %d reported an exit twice", trialID)
+		return nil, api.AsValidationError("trial %d reported an exit twice", trialID)
 	}
 
 	switch exitedReason {

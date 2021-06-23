@@ -342,11 +342,11 @@ func (t *trial) registerRendezvousWatcher(
 ) (rendezvousWatcher, error) {
 	// Validate this watch request is unique and not stale.
 	if _, ok := t.containerRanks[msg.containerID]; !ok {
-		return rendezvousWatcher{}, apiutils.AsErrBadRequest(
+		return rendezvousWatcher{}, apiutils.AsValidationError(
 			"rendezvous request from stale container: %s", msg.containerID,
 		)
 	} else if _, ok := t.rendezvousWatchers[msg.containerID]; ok {
-		return rendezvousWatcher{}, apiutils.AsErrBadRequest(
+		return rendezvousWatcher{}, apiutils.AsValidationError(
 			"rendezvous request from already connected container: %s", msg.containerID,
 		)
 	}

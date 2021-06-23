@@ -77,14 +77,14 @@ func (s *Searcher) InitialOperations() ([]Operation, error) {
 
 // TrialCreated informs the searcher that a trial has been created as a result of a Create
 // operation.
-func (s *Searcher) TrialCreated(create Create, trialID int) ([]Operation, error) {
-	s.TrialIDs[create.RequestID] = trialID
-	s.RequestIDs[trialID] = create.RequestID
-	s.TrialProgress[create.RequestID] = 0
-	operations, err := s.method.trialCreated(s.context(), create.RequestID)
+func (s *Searcher) TrialCreated(requestID model.RequestID, trialID int) ([]Operation, error) {
+	s.TrialIDs[requestID] = trialID
+	s.RequestIDs[trialID] = requestID
+	s.TrialProgress[requestID] = 0
+	operations, err := s.method.trialCreated(s.context(), requestID)
 	if err != nil {
 		return nil, errors.Wrapf(err,
-			"error while handling a trial created event: %s", create.RequestID)
+			"error while handling a trial created event: %s", requestID)
 	}
 	s.Record(operations)
 	return operations, nil

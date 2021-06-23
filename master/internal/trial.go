@@ -3,6 +3,7 @@ package internal
 import (
 	"archive/tar"
 	"fmt"
+	"github.com/determined-ai/determined/master/pkg/searcher"
 	"sort"
 	"time"
 
@@ -155,13 +156,13 @@ type trial struct {
 	privateKey     []byte
 	publicKey      []byte
 
-	// preemption represents the preemption state of the current allocated task.
+	// searcher encapsulates the searcher state of the trial.
+	searcher trialSearcher
+	// preemption encapsulates the preemption state of the current allocated task.
 	// If there is no current task, or it is unallocated, it is nil.
 	preemption *preemption
 	// Map of container ID to watcher ID a rendezvous info listener.
 	rendezvousWatchers map[cproto.ID]chan<- rendezvousInfoOrError
-
-	trialSearcherState TrialSearcherState
 
 	// restarts is essentially a failure count, it increments when the trial fails and we retry it.
 	restarts int
@@ -205,7 +206,7 @@ func newTrial(
 
 		rendezvousWatchers: make(map[cproto.ID]chan<- rendezvousInfoOrError),
 
-		trialSearcherState: state,
+		searcher: newTrialSearcher(state),
 	}
 }
 
@@ -238,7 +239,7 @@ func (t *trial) Receive(ctx *actor.Context) error {
 		// the scheduler. This should be refactored into the terminating logic.
 
 	case TrialSearcherState:
-		t.trialSearcherState = msg
+		t.searcher.setState(msg)
 
 	case watchPreemption:
 		if resp, err := t.preemption.watch(msg); err != nil {
@@ -295,7 +296,7 @@ func (t *trial) Receive(ctx *actor.Context) error {
 	if t.task == nil {
 		if t.trialClosing() {
 			ctx.Self().Stop()
-		} else if !t.upToDate() && t.experimentState == model.ActiveState {
+		} else if !t.searcher.workRemaining() && t.experimentState == model.ActiveState {
 			slotsNeeded := t.config.Resources().SlotsPerTrial()
 			label := t.config.Resources().AgentLabel()
 			resourcePool := t.config.Resources().ResourcePool()
@@ -365,14 +366,6 @@ func (t *trial) registerRendezvousWatcher(
 	}
 
 	return rendezvousWatcher{C: w}, nil
-}
-
-func (t *trial) upToDate() bool {
-	return t.trialSearcherState.Complete
-}
-
-func (t *trial) complete() bool {
-	return t.upToDate() && t.trialSearcherState.Closed
 }
 
 func (t *trial) runningReceive(ctx *actor.Context) error {
@@ -488,11 +481,11 @@ func (t *trial) processAllocated(
 	}
 	if !t.idSet {
 		modelTrial := model.NewTrial(
-			t.trialSearcherState.Create.RequestID,
+			t.searcher.requestID(),
 			t.experiment.ID,
-			model.JSONObj(t.trialSearcherState.Create.Hparams),
+			model.JSONObj(t.searcher.hparams()),
 			t.warmStartCheckpoint,
-			int64(t.trialSearcherState.Create.TrialSeed))
+			int64(t.searcher.seed()))
 		if err := t.db.AddTrial(modelTrial); err != nil {
 			ctx.Log().WithError(err).Error("failed to save trial to database")
 			t.terminate(ctx)
@@ -504,7 +497,7 @@ func (t *trial) processAllocated(
 			Name:        fmt.Sprintf("Trial %d (Experiment %d)", t.id, t.experiment.ID),
 			TaskHandler: ctx.Self(),
 		})
-		ctx.Tell(ctx.Self().Parent(), trialCreated{create: t.trialSearcherState.Create, trialID: t.id})
+		ctx.Tell(ctx.Self().Parent(), trialCreated{requestID: t.searcher.requestID(), trialID: t.id})
 	}
 
 	ctx.Log().Infof("starting trial container")
@@ -566,8 +559,8 @@ func (t *trial) processAllocated(
 			TrialID: t.id,
 			ExperimentConfig:    schemas.Copy(t.config).(expconf.ExperimentConfig),
 			ModelDefinition:     t.modelDefinition,
-			HParams:             t.trialSearcherState.Create.Hparams,
-			TrialSeed:           t.trialSearcherState.Create.TrialSeed,
+			HParams:             t.searcher.hparams(),
+			TrialSeed:           t.searcher.seed(),
 			LatestCheckpoint:    latestCheckpoint,
 			AdditionalFiles:     additionalFiles,
 			IsMultiAgent:        len(t.allocations) > 1,
@@ -787,7 +780,7 @@ func classifyStatus(state terminatedContainerWithState) aproto.ContainerStopped 
 }
 
 func (t *trial) trialClosing() bool {
-	return t.killed || t.restarts > t.config.MaxRestarts() || (t.complete()) || model.StoppingStates[t.experimentState]
+	return t.killed || t.restarts > t.config.MaxRestarts() || (t.searcher.finished()) || model.StoppingStates[t.experimentState]
 }
 
 func (t *trial) terminate(ctx *actor.Context) {
@@ -963,4 +956,39 @@ func (p *preemption) close() {
 		return
 	}
 	p.preempt()
+}
+
+// trialSearcher manages all searcher-related logic for a trial.
+type trialSearcher struct {
+	state TrialSearcherState
+}
+
+func newTrialSearcher(state TrialSearcherState) trialSearcher {
+	return trialSearcher{
+		state: state,
+	}
+}
+
+func (s *trialSearcher) setState(state TrialSearcherState) {
+	s.state = state
+}
+
+func (s trialSearcher) workRemaining() bool {
+	return s.state.Complete
+}
+
+func (s trialSearcher) finished() bool {
+	return s.state.Complete && s.state.Closed
+}
+
+func (s trialSearcher) requestID() model.RequestID {
+	return s.state.Create.RequestID
+}
+
+func (s trialSearcher) seed() uint32 {
+	return s.state.Create.TrialSeed
+}
+
+func (s trialSearcher) hparams() searcher.HParamSample {
+	return s.state.Create.Hparams
 }

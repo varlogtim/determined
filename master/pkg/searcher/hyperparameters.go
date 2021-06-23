@@ -8,9 +8,9 @@ import (
 	"github.com/determined-ai/determined/master/pkg/schemas/expconf"
 )
 
-type hparamSample map[string]interface{}
+type HParamSample map[string]interface{}
 
-func (h hparamSample) GlobalBatchSize() int {
+func (h HParamSample) GlobalBatchSize() int {
 	// If the hyperparameters.global_batch_size is configured as a const hyperparameter,
 	// we infer its type to be a float but in some cases, its type can be specified and an
 	// int is also valid.
@@ -21,8 +21,8 @@ func (h hparamSample) GlobalBatchSize() int {
 	return h[expconf.GlobalBatchSize].(int)
 }
 
-func sampleAll(h expconf.Hyperparameters, rand *nprand.State) hparamSample {
-	results := make(hparamSample)
+func sampleAll(h expconf.Hyperparameters, rand *nprand.State) HParamSample {
+	results := make(HParamSample)
 	h.Each(func(name string, param expconf.Hyperparameter) {
 		results[name] = sampleOne(param, rand)
 	})

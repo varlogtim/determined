@@ -29,7 +29,7 @@ import (
 type (
 	trialCreated struct {
 		trialID int
-		create searcher.Create
+		requestID model.RequestID
 	}
 	trialCompleteOperation struct {
 		trialID int
@@ -199,7 +199,7 @@ func (e *experiment) Receive(ctx *actor.Context) error {
 		e.processOperations(ctx, ops, nil)
 		ctx.Tell(e.hpImportance, hpimportance.ExperimentCreated{ID: e.ID})
 	case trialCreated:
-		ops, err := e.searcher.TrialCreated(msg.create, msg.trialID)
+		ops, err := e.searcher.TrialCreated(msg.requestID, msg.trialID)
 		e.processOperations(ctx, ops, err)
 	case trialCompleteOperation:
 		switch state, ok := e.TrialSearcherState[msg.op.RequestID]; {

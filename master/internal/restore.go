@@ -140,7 +140,7 @@ func (e *experiment) restoreTrial(ctx *actor.Context, ckpt *model.Checkpoint, st
 		if _, ok := e.searcher.TrialIDs[state.Create.RequestID]; !ok {
 			ctx.Tell(ctx.Self(), trialCreated{
 				trialID: *trialID,
-				create:  state.Create,
+				requestID:  state.Create.RequestID,
 			})
 		}
 	}

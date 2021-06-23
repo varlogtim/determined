@@ -296,7 +296,7 @@ func (t *trial) Receive(ctx *actor.Context) error {
 	if t.task == nil {
 		if t.trialClosing() {
 			ctx.Self().Stop()
-		} else if !t.searcher.workRemaining() && t.experimentState == model.ActiveState {
+		} else if t.searcher.workRemaining() && t.experimentState == model.ActiveState {
 			slotsNeeded := t.config.Resources().SlotsPerTrial()
 			label := t.config.Resources().AgentLabel()
 			resourcePool := t.config.Resources().ResourcePool()
@@ -974,7 +974,7 @@ func (s *trialSearcher) setState(state TrialSearcherState) {
 }
 
 func (s trialSearcher) workRemaining() bool {
-	return s.state.Complete
+	return !s.state.Complete
 }
 
 func (s trialSearcher) finished() bool {

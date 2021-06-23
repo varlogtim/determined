@@ -217,13 +217,27 @@ func (e *experiment) Receive(ctx *actor.Context) error {
 
 		state.Complete = true
 		e.TrialSearcherState[msg.op.RequestID] = state
+		ctx.Tell(ctx.Child(msg.op.RequestID), state)
 		ops, err := e.searcher.ValidationCompleted(msg.trialID, msg.metric, msg.op)
 		e.processOperations(ctx, ops, err)
 	case trialReportEarlyExit:
-		ops, err := e.searcher.TrialExitedEarly(msg.trialID, msg.reason)
-		if err != nil {
-			ctx.Respond(err)
+		requestID, ok := e.searcher.RequestID(msg.trialID)
+		if !ok {
+			ctx.Respond(api.AsErrNotFound("trial not found"))
+			return nil
 		}
+
+		state, ok := e.TrialSearcherState[requestID]
+		if !ok {
+			ctx.Respond(api.AsValidationError("trial has no state"))
+			return nil
+		}
+
+		state.Complete = true
+		state.Closed = true
+		e.TrialSearcherState[requestID] = state
+		ctx.Tell(ctx.Child(requestID), state)
+		ops, err := e.searcher.TrialExitedEarly(msg.trialID, msg.reason)
 		e.processOperations(ctx, ops, err)
 	case trialReportProgress:
 		e.searcher.SetTrialProgress(msg.requestID, msg.progress)

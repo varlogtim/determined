@@ -86,6 +86,7 @@ func markWorkloadErrored(db *db.PgDB, w workload.Workload) error {
 	}
 }
 
+// TODO(XXX): nuke
 func markWorkloadCompleted(db *db.PgDB, msg workload.CompletedMessage) error {
 	switch msg.Workload.Kind {
 	case workload.RunStep:

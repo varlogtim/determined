@@ -132,7 +132,6 @@ type trial struct {
 	experiment      *model.Experiment
 	config          expconf.ExperimentConfig
 	modelDefinition archive.Archive
-
 	warmStartCheckpoint *model.Checkpoint
 
 	// The following fields tracks the interaction with the resource providers.

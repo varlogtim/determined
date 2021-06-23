@@ -242,11 +242,14 @@ func (e *experiment) Receive(ctx *actor.Context) error {
 		state, ok := e.TrialSearcherState[requestID]
 		switch {
 		case !ok:
-			ctx.Respond(api.AsErrNotFound("trial %d has no operations", msg.trialID))
+			ctx.Respond(api.AsErrNotFound("trial %d has no state", msg.trialID))
+			return nil
 		case state.Closed && state.Complete:
 			ctx.Respond(api.AsErrNotFound("trial %d was closed by searcher", msg.trialID))
+			return nil
 		case state.Complete:
 			ctx.Respond(api.AsErrNotFound("trial %d has no uncompleted operations", msg.trialID))
+			return nil
 		}
 
 		ctx.Respond(state)

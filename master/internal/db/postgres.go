@@ -1672,18 +1672,19 @@ func derivePriorWorkloadEndTime(
 	ctx context.Context, tx *sqlx.Tx, trialID int32,
 ) (time.Time, error) {
 	var endTime time.Time
+	// TODO(XXX): task_runs => tasks
 	if err := tx.QueryRowxContext(ctx, `
 SELECT coalesce(greatest(
 	(SELECT max(end_time) FROM raw_steps WHERE trial_id = $1),
 	(SELECT max(end_time) FROM raw_validations WHERE trial_id = $1),
 	(SELECT max(end_time) FROM raw_checkpoints WHERE trial_id = $1),
 	(
-	    SELECT coalesce(r.start_time, t.start_time)
+	    SELECT coalesce(tr.start_time, t.start_time)
 		FROM trials t
-		LEFT JOIN runs r ON t.id = r.run_type_fk
+		LEFT JOIN task_runs tr ON t.id = tr.task_type_fk_id
 		WHERE t.id = $1
-	      AND r.run_type = 'TRIAL'
-	    ORDER BY r.id DESC
+	      AND tr.task_type = 'TRIAL'
+	    ORDER BY tr.id DESC
 	    LIMIT 1
 	)), now())
 `, trialID).Scan(&endTime); err != nil {
@@ -1696,9 +1697,9 @@ func checkTrialRunID(ctx context.Context, tx *sqlx.Tx, trialID, runID int32) err
 	var cRunID int
 	switch err := tx.QueryRowxContext(ctx, `
 SELECT coalesce(max(id), 0)
-FROM runs
-WHERE run_type = 'TRIAL'
-  AND run_type_fk = $1
+FROM task_runs
+WHERE task_type = 'TRIAL'
+  AND task_type_fk_id = $1
 `, trialID).Scan(&cRunID); {
 	case err != nil:
 		return errors.Wrap(err, "querying current run")

@@ -87,6 +87,7 @@ class AdvancedSearcher:
 
     def _get_searcher_op(self):
         r = self._session.get(f"/api/v1/trials/{self._trial_id}/searcher/operation")
+        # XXX: handle non-validateAfter workloads
         body = r.json()["op"]["validateAfter"]["length"]
         return SearcherOp(self._session, self._trial_id, unit=Unit(body["units"]), length=body["length"])
 
@@ -97,10 +98,15 @@ class AdvancedSearcher:
         The caller must call op.complete() on each operation.
         """
 
+        last_op_length = 0
         while True:
             op = self._get_searcher_op()
             if op is None:
                 break
+            # XXX: remove this when we have non-validateAfter workloads
+            if op.length == last_op_length:
+                break
+            last_op_length = op.length
             yield op
             if not op._completed:
                 raise AssertionError("you must call op.complete() on each operation")

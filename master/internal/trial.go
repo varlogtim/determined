@@ -217,6 +217,8 @@ func (t *trial) Receive(ctx *actor.Context) error {
 		if t.idSet {
 			// t.idSet in actor.PreStart indicates we are in a restart.
 			ctx.AddLabel("trial-id", t.id)
+			// TODO(XXX): actually increment this
+			// TODO(XXX): pack DET_TASK_RUN_ID into container
 			runID, restarts, err := t.db.TrialRunIDAndRestartCount(t.id)
 			if err != nil {
 				return errors.Wrap(err, "restoring old trial state")
@@ -859,6 +861,7 @@ func (t *trial) terminated(ctx *actor.Context) {
 	t.allReadySucceeded = false
 	t.terminatedContainers = make(map[cproto.ID]terminatedContainerWithState)
 	t.startedContainers = make(map[cproto.ID]bool)
+	// TODO(XXX): merge in invalid hp logic
 
 	switch {
 	case status.Failure == nil:
@@ -883,6 +886,9 @@ func (t *trial) terminated(ctx *actor.Context) {
 	ctx.Log().Errorf("unexpected failure of trial after restart %d/%d: %v",
 		t.restarts, t.config.MaxRestarts(), status)
 	t.restarts++
+	if err := t.db.SetTrialRestartCount(t.id, t.restarts); err != nil {
+		ctx.Log().WithError(err).Error("failed to set restart ID")
+	}
 	if t.restarts <= t.config.MaxRestarts() {
 		ctx.Log().Infof("restarting trial %d", t.id)
 	}

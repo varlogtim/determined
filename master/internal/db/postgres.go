@@ -1441,13 +1441,24 @@ LIMIT 1`, trialID).Scan(&runID); err != nil {
 	}
 
 	if err := db.sql.QueryRowx(`
-SELECT restart
+SELECT restarts
 FROM trials
 WHERE id = $1`, trialID).Scan(&restart); err != nil {
 		return 0, 0, errors.Wrap(err, "failed to scan trial restart count")
 	}
 
 	return runID, restart, nil
+}
+
+// SetTrialRestartCount sets the trial's restart count.
+func (db *PgDB) SetTrialRestartCount(trialID, restartCount int) error {
+	if _, err := db.sql.Exec(`
+UPDATE trials
+SET restarts = $2
+WHERE id = $1`, trialID, restartCount); err != nil {
+		return errors.Wrap(err, "failed to scan trial restart count")
+	}
+	return nil
 }
 
 // StepByTotalBatches looks up a step by (TrialID, TotalBatches) pair,

@@ -32,3 +32,5 @@ CREATE TABLE public.trial_snapshots (
     CONSTRAINT fk_trial_snapshots_experiments_experiment_id FOREIGN KEY(experiment_id) REFERENCES public.experiments(id),
     CONSTRAINT uq_trial_snapshots_experiment_id_request_id UNIQUE(experiment_id, request_id)
 );
+
+DROP TABLE public.trial_runner_metadata;

@@ -19,3 +19,10 @@ CREATE TABLE public.task_runs (
     CONSTRAINT trial_runs_id_trial_id_unique UNIQUE (task_type, task_type_fk_id, id)
 );
 
+CREATE TABLE public.trial_runner_metadata (
+    id SERIAL,
+    trial_id int,
+    state text,
+    CONSTRAINT trial_runner_metadata_trial_id_unique UNIQUE (trial_id),
+    CONSTRAINT trial_runner_metadata_trial_id_fk FOREIGN KEY (trial_id) REFERENCES public.trials(id)
+);

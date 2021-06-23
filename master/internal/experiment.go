@@ -202,7 +202,8 @@ func (e *experiment) Receive(ctx *actor.Context) error {
 		ops, err := e.searcher.TrialCreated(msg.requestID, msg.trialID)
 		e.processOperations(ctx, ops, err)
 	case trialCompleteOperation:
-		switch state, ok := e.TrialSearcherState[msg.op.RequestID]; {
+		state, ok := e.TrialSearcherState[msg.op.RequestID]
+		switch {
 		case !ok:
 			ctx.Respond(api.AsValidationError("no such trial"))
 			return nil
@@ -214,7 +215,6 @@ func (e *experiment) Receive(ctx *actor.Context) error {
 			return nil
 		}
 
-		state := e.TrialSearcherState[msg.op.RequestID]
 		state.Complete = true
 		e.TrialSearcherState[msg.op.RequestID] = state
 		ops, err := e.searcher.ValidationCompleted(msg.trialID, msg.metric, msg.op)
@@ -240,19 +240,11 @@ func (e *experiment) Receive(ctx *actor.Context) error {
 		}
 
 		state, ok := e.TrialSearcherState[requestID]
-		switch {
-		case !ok:
+		if !ok {
 			ctx.Respond(api.AsErrNotFound("trial %d has no state", msg.trialID))
-			return nil
-		case state.Closed && state.Complete:
-			ctx.Respond(api.AsErrNotFound("trial %d was closed by searcher", msg.trialID))
-			return nil
-		case state.Complete:
-			ctx.Respond(api.AsErrNotFound("trial %d has no uncompleted operations", msg.trialID))
-			return nil
+		} else {
+			ctx.Respond(state)
 		}
-
-		ctx.Respond(state)
 	case actor.ChildFailed:
 		ctx.Log().WithError(msg.Error).Error("trial failed unexpectedly")
 		e.trialClosed(ctx, model.MustParseRequestID(msg.Child.Address().Local()))

@@ -596,6 +596,7 @@ func (a *apiServer) GetCurrentTrialSearcherOperation(
 				ValidateAfter: resp.Op.ToProto(),
 			},
 		},
+		Complete: resp.Complete,
 	}, nil
 }
 

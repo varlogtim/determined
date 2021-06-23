@@ -88,8 +88,12 @@ class AdvancedSearcher:
     def _get_searcher_op(self):
         r = self._session.get(f"/api/v1/trials/{self._trial_id}/searcher/operation")
         # XXX: handle non-validateAfter workloads
-        body = r.json()["op"]["validateAfter"]["length"]
-        return SearcherOp(self._session, self._trial_id, unit=Unit(body["units"]), length=body["length"])
+        body = r.json()
+        if body["complete"]:
+            return None
+
+        length = body["op"]["validateAfter"]["length"]
+        return SearcherOp(self._session, self._trial_id, unit=Unit(length["units"]), length=length["length"])
 
     def ops(self):
         """

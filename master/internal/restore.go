@@ -104,8 +104,8 @@ func (e *experiment) restoreTrial(
 	l := ctx.Log().WithField("request-id", state.Create.RequestID)
 	l.Info("restoring trial")
 
+	// TODO(XXX): make a ticket to just create trials immediately, this request ID dance isn't worth it.
 	var trialID *int
-	var snapshot []byte
 	switch trial, err := e.db.TrialByExperimentAndRequestID(e.ID, state.Create.RequestID); {
 	case errors.Cause(err) == db.ErrNotFound:
 		l.Info("trial was never previously allocated")
@@ -125,9 +125,6 @@ func (e *experiment) restoreTrial(
 			l.Infof("cannot restore trial in state: %s", trial.State)
 			return true
 		}
-		if snapshot, err = e.retrieveTrialSnapshot(l, state.Create); err != nil {
-			l.Warnf("failed to retrieve trial snapshot, restarting fresh: %s", err)
-		}
 	}
 
 	config := schemas.Copy(e.Config).(expconf.ExperimentConfig)
@@ -135,17 +132,6 @@ func (e *experiment) restoreTrial(
 	if trialID != nil {
 		t.processID(*trialID)
 	}
-	if snapshot != nil {
-		if err := t.Restore(snapshot); err != nil {
-			l.WithError(err).Warn("failed to restore trial, restarting fresh")
-			// Just new up the trial again in case restore half-worked.
-			t = newTrial(e, config, ckpt, state)
-			if trialID != nil {
-				t.processID(*trialID)
-			}
-		}
-	}
-	t.replayCreate = trialID != nil && snapshot == nil
 	ctx.ActorOf(state.Create.RequestID, t)
 	l.Infof("restored trial")
 	return false
@@ -167,34 +153,14 @@ func (m *Master) retrieveExperimentSnapshot(expModel *model.Experiment) ([]byte,
 	}
 }
 
-func (e *experiment) retrieveTrialSnapshot(
-	l *log.Entry, create searcher.Create,
-) (snapshot []byte, err error) {
-	switch snapshot, version, err := e.db.TrialSnapshot(e.ID, create.RequestID); {
-	case snapshot == nil:
-		// This can only happen if the master dies between when the trial saves itself
-		// to the database and the trialCreated message is received and handled. If we're here, the
-		// easiest fix is to just replay the trial created message.
-		l.Info("trial was previously allocated but had no snapshot")
-		return nil, nil
-	case err != nil:
-		return nil, errors.Wrap(err, "failed to retrieve trial snapshot")
-	default:
-		if snapshot, err = shimTrialSnapshot(snapshot, version); err != nil {
-			return nil, errors.Wrap(err, "failed to shim trial snapshot")
-		}
-		return snapshot, nil
-	}
-}
-
-func (e *experiment) snapshotAndSave(ctx *actor.Context, ts trialSnapshot) {
+func (e *experiment) snapshotAndSave(ctx *actor.Context) {
 	es, err := e.Snapshot()
 	if err != nil {
 		e.faultToleranceEnabled = false
 		ctx.Log().WithError(err).Errorf("failed to snapshot experiment, fault tolerance is lost")
 		return
 	}
-	err = e.db.SaveSnapshot(e.ID, ts.trialID, ts.requestID, experimentSnapshotVersion, es, ts.snapshot)
+	err = e.db.SaveSnapshot(e.ID, experimentSnapshotVersion, es)
 	if err != nil {
 		e.faultToleranceEnabled = false
 		ctx.Log().WithError(err).Errorf("failed to persist experiment snapshot, fault tolerance is lost")

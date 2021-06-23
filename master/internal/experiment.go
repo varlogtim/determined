@@ -28,17 +28,17 @@ import (
 // Experiment-specific actor messages.
 type (
 	trialCreated struct {
+		trialID int
 		create searcher.Create
-		trialSnapshot
 	}
 	trialCompleteOperation struct {
+		trialID int
 		op     searcher.ValidateAfter
 		metric float64
-		trialSnapshot
 	}
 	trialReportEarlyExit struct {
+		trialID int
 		reason workload.ExitedReason
-		trialSnapshot
 	}
 	trialReportProgress struct {
 		requestID model.RequestID
@@ -61,20 +61,6 @@ type (
 	getTrial       struct{ trialID int }
 	killExperiment struct{}
 )
-
-type trialSnapshot struct {
-	requestID model.RequestID
-	trialID   int
-	snapshot  []byte
-}
-
-type trialSnapshotCarrier interface {
-	getSnapshot() trialSnapshot
-}
-
-func (t trialSnapshot) getSnapshot() trialSnapshot {
-	return t
-}
 
 type TrialSearcherState struct {
 	Create searcher.Create
@@ -189,9 +175,6 @@ func newExperiment(master *Master, expModel *model.Experiment, taskSpec *tasks.T
 }
 
 func (e *experiment) Receive(ctx *actor.Context) error {
-	if msg, ok := ctx.Message().(trialSnapshotCarrier); ok && e.faultToleranceEnabled {
-		defer e.snapshotAndSave(ctx, msg.getSnapshot())
-	}
 	switch msg := ctx.Message().(type) {
 	// Searcher-related messages.
 	case actor.PreStart:
@@ -246,6 +229,7 @@ func (e *experiment) Receive(ctx *actor.Context) error {
 		ops, err := e.searcher.ValidationCompleted(msg.trialID, msg.metric, msg.op)
 		e.processOperations(ctx, ops, err)
 	case trialReportEarlyExit:
+		defer e.snapshotAndSave(ctx)
 		ops, err := e.searcher.TrialExitedEarly(msg.trialID, msg.reason)
 		if err != nil && ctx.ExpectingResponse() {
 			ctx.Respond(err)
@@ -457,6 +441,7 @@ func (e *experiment) processOperations(
 		e.updateState(ctx, model.StoppingErrorState)
 		return
 	}
+	defer e.snapshotAndSave(ctx)
 
 	updatedTrials := make(map[model.RequestID]bool)
 	for _, operation := range ops {

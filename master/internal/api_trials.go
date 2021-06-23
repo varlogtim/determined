@@ -611,17 +611,10 @@ func (a *apiServer) CompleteTrialSearcherValidation(
 	}
 	exp := actor.Addr("experiments", eID)
 
-	// TODO(DET-5210): Sending a trial snapshot along forces an experiment snapshot,
-	// but with a nil snapshot it won't save the trial snapshot. At the end of push
-	// arch, we should just remove trial snapshots entirely (they should snapshotted
-	// but separately, not through/with experiments, since it's really just run id and restarts).
 	if err = a.askAtDefaultSystem(exp, trialCompleteOperation{
+		trialID: int(req.TrialId),
 		metric: req.CompletedOperation.SearcherMetric,
 		op:     searcher.ValidateAfterFromProto(rID, req.CompletedOperation.Op),
-		trialSnapshot: trialSnapshot{
-			trialID:   int(req.TrialId),
-			requestID: rID,
-		},
 	}, nil); err != nil {
 		return nil, err
 	}
@@ -631,7 +624,7 @@ func (a *apiServer) CompleteTrialSearcherValidation(
 func (a *apiServer) ReportTrialSearcherEarlyExit(
 	_ context.Context, req *apiv1.ReportTrialSearcherEarlyExitRequest,
 ) (*apiv1.ReportTrialSearcherEarlyExitResponse, error) {
-	eID, rID, err := a.m.db.TrialExperimentAndRequestID(int(req.TrialId))
+	eID, _, err := a.m.db.TrialExperimentAndRequestID(int(req.TrialId))
 	switch {
 	case errors.Is(err, db.ErrNotFound):
 		return nil, trialNotFound
@@ -640,13 +633,9 @@ func (a *apiServer) ReportTrialSearcherEarlyExit(
 	}
 	exp := actor.Addr("experiments", eID)
 
-	// TODO(DET-5210): Ditto comment in apiServer.ReportTrialSearcherValidation.
 	if err = a.askAtDefaultSystem(exp, trialReportEarlyExit{
+		trialID: int(req.TrialId),
 		reason: workload.ExitedReasonFromProto(req.EarlyExit.Reason),
-		trialSnapshot: trialSnapshot{
-			trialID:   int(req.TrialId),
-			requestID: rID,
-		},
 	}, nil); err != nil {
 		return nil, err
 	}

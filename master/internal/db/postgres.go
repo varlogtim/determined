@@ -1393,12 +1393,14 @@ VALUES (
 	return nil
 }
 
+type TaskType string
+
 // AddTrialRun saves a new run for the trial.
 func (db *PgDB) AddTrialRun(trialID, runID int) error {
 	_, err := db.sql.Exec(`
-INSERT INTO runs (run_type, run_type_fk, id)
+INSERT INTO task_runs (task_type, task_type_fk_id, id)
 VALUES ('TRIAL', $1, $2)
-ON CONFLICT (run_type, run_type_fk, id)
+ON CONFLICT (task_type, task_type_fk_id, id)
 DO UPDATE SET start_time = now()`, trialID, runID)
 	return err
 }
@@ -1406,22 +1408,46 @@ DO UPDATE SET start_time = now()`, trialID, runID)
 // CompleteTrialRun the given run.
 func (db *PgDB) CompleteTrialRun(trialID, runID int) error {
 	_, err := db.sql.Exec(`
-UPDATE runs
+UPDATE task_runs
 SET end_time = now()
-WHERE run_type = 'TRIAL'
-  AND run_type_fk = $1 AND id = $2`, trialID, runID)
+WHERE task_type = 'TRIAL'
+  AND task_type_fk_id = $1
+  AND id = $2`, trialID, runID)
 	return err
 }
 
 // EndTrialRuns sets the end time on all open runs to now.
 func (db *PgDB) EndTrialRuns(trialID int) error {
 	_, err := db.sql.Exec(`
-UPDATE runs
+UPDATE task_runs
 SET end_time = now()
-WHERE run_type = 'TRIAL'
-  AND run_type_fk = $1
+WHERE task_type = 'TRIAL'
+  AND task_type_fk_id = $1
   AND end_time IS NULL`, trialID)
 	return err
+}
+
+// TrialRunAndRestartCount returns the run ID and restart count for a trial.
+func (db *PgDB) TrialRunIDAndRestartCount(trialID int) (int, int, error) {
+	var runID, restart int
+	if err := db.sql.QueryRowx(`
+SELECT id
+FROM task_runs
+WHERE task_type = 'TRIAL'
+  AND task_type_fk_id = $1
+ORDER BY id DESC
+LIMIT 1`, trialID).Scan(&runID); err != nil {
+		return 0, 0, errors.Wrap(err, "failed to scan task run ID")
+	}
+
+	if err := db.sql.QueryRowx(`
+SELECT restart
+FROM trials
+WHERE id = $1`, trialID).Scan(&restart); err != nil {
+		return 0, 0, errors.Wrap(err, "failed to scan trial restart count")
+	}
+
+	return runID, restart, nil
 }
 
 // StepByTotalBatches looks up a step by (TrialID, TotalBatches) pair,

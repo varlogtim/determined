@@ -12,8 +12,6 @@ import (
 
 	"github.com/determined-ai/determined/proto/pkg/trialv1"
 
-	"github.com/determined-ai/determined/proto/pkg/apiv1"
-
 	"github.com/google/uuid"
 
 	"github.com/pkg/errors"
@@ -378,13 +376,10 @@ func (t *trial) runningReceive(ctx *actor.Context) error {
 		ctx.Log().Info("found child actor failed, terminating forcibly")
 		t.terminate(ctx)
 
-	case killTrial, *apiv1.KillTrialRequest:
+	case killTrial:
 		ctx.Log().Info("received API request to kill trial")
 		t.killed = true
 		t.terminate(ctx)
-		if ctx.ExpectingResponse() {
-			ctx.Respond(&apiv1.KillTrialResponse{})
-		}
 
 	case allReadyTimeout:
 		if msg.runID == t.runID &&

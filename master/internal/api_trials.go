@@ -299,13 +299,10 @@ func (a *apiServer) KillTrial(
 		return nil, status.Errorf(codes.NotFound, "trial %d not found", req.Id)
 	}
 
-	resp := apiv1.KillTrialResponse{}
-	addr := actor.Addr("trials", req.Id).String()
-	err = a.actorRequest(addr, req, &resp)
-	if status.Code(err) == codes.NotFound {
-		return &apiv1.KillTrialResponse{}, nil
+	if err = a.askAtDefaultSystem(actor.Addr("trials", req.Id), killTrial{}, nil); err != nil {
+		return nil, err
 	}
-	return &resp, err
+	return &apiv1.KillTrialResponse{}, nil
 }
 
 func (a *apiServer) GetExperimentTrials(

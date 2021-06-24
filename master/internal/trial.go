@@ -293,47 +293,44 @@ func (t *trial) Receive(ctx *actor.Context) error {
 		}
 	}
 
-	if t.task == nil {
-		if t.trialClosing() {
-			ctx.Self().Stop()
-		} else if t.searcher.workRemaining() && t.experimentState == model.ActiveState {
-			slotsNeeded := t.config.Resources().SlotsPerTrial()
-			label := t.config.Resources().AgentLabel()
-			resourcePool := t.config.Resources().ResourcePool()
-			var name string
-			if t.idSet {
-				name = fmt.Sprintf("Trial %d (Experiment %d)", t.id, t.experiment.ID)
-			} else {
-				name = fmt.Sprintf("Trial (Experiment %d)", t.experiment.ID)
-			}
-
-			// TODO(brad): When we support tracking runs for more than trials, this logic should
-			// likely be generalized by moving it rather than duplicating it for all task types.
-			t.runID++
-			if err := t.db.AddTrialRun(t.id, t.runID); err != nil {
-				return errors.Wrap(err, "failed to save trial run")
-			}
-
-			t.task = &sproto.AllocateRequest{
-				ID:             sproto.NewTaskID(),
-				Name:           name,
-				Group:          ctx.Self().Parent(),
-				SlotsNeeded:    slotsNeeded,
-				NonPreemptible: false,
-				Label:          label,
-				ResourcePool:   resourcePool,
-				FittingRequirements: sproto.FittingRequirements{
-					SingleAgent: false,
-				},
-				TaskActor: ctx.Self(),
-			}
-			if err := ctx.Ask(t.rm, *t.task).Error(); err != nil {
-				ctx.Log().Error(err)
-				t.terminated(ctx)
-			}
-		}
-	} else if t.experimentState != model.ActiveState {
+	if t.experimentState != model.ActiveState {
 		_ = t.releaseResource(ctx)
+		return nil
+	}
+
+	if t.task == nil && t.searcher.workRemaining() && t.experimentState == model.ActiveState {
+		slotsNeeded := t.config.Resources().SlotsPerTrial()
+		label := t.config.Resources().AgentLabel()
+		resourcePool := t.config.Resources().ResourcePool()
+		var name string
+		if t.idSet {
+			name = fmt.Sprintf("Trial %d (Experiment %d)", t.id, t.experiment.ID)
+		} else {
+			name = fmt.Sprintf("Trial (Experiment %d)", t.experiment.ID)
+		}
+
+		t.runID++
+		if err := t.db.AddTrialRun(t.id, t.runID); err != nil {
+			return errors.Wrap(err, "failed to save trial run")
+		}
+
+		t.task = &sproto.AllocateRequest{
+			ID:             sproto.NewTaskID(),
+			Name:           name,
+			Group:          ctx.Self().Parent(),
+			SlotsNeeded:    slotsNeeded,
+			NonPreemptible: false,
+			Label:          label,
+			ResourcePool:   resourcePool,
+			FittingRequirements: sproto.FittingRequirements{
+				SingleAgent: false,
+			},
+			TaskActor: ctx.Self(),
+		}
+		if err := ctx.Ask(t.rm, *t.task).Error(); err != nil {
+			ctx.Log().Error(err)
+			t.terminated(ctx)
+		}
 	}
 
 	return nil
@@ -770,19 +767,6 @@ func (t *trial) insertLog(ctx *actor.Context, container cproto.Container, msg st
 	})
 }
 
-func classifyStatus(state terminatedContainerWithState) aproto.ContainerStopped {
-	switch status := state.exitStatus; {
-	case status.Failure != nil && status.Failure.FailureType != aproto.TaskAborted:
-		return status.ContainerStopped
-	default:
-		return status.ContainerStopped
-	}
-}
-
-func (t *trial) trialClosing() bool {
-	return t.killed || t.restarts > t.config.MaxRestarts() || (t.searcher.finished()) || model.StoppingStates[t.experimentState]
-}
-
 func (t *trial) terminate(ctx *actor.Context) {
 	switch {
 	case len(t.allocations) == 0:
@@ -814,24 +798,7 @@ func (t *trial) preempt(ctx *actor.Context) {
 // terminated handles errors and restarting for trials when they are failed, paused, canceled,
 // or killed.
 func (t *trial) terminated(ctx *actor.Context) {
-	// Collect container terminated states.
-	getLeaderState := func() (terminatedContainerWithState, bool) {
-		for _, c := range t.terminatedContainers {
-			if c.isLeader {
-				return c, true
-			}
-		}
-		return terminatedContainerWithState{}, false
-	}
-	status := aproto.ContainerError(aproto.AgentError, errors.New("no error status provided"))
-	if len(t.startedContainers) == 0 {
-		// If there are no containers started executing, consider as aborted.
-		// The trial state will be restart.
-		status = aproto.ContainerError(aproto.TaskAborted, errors.New("task aborted"))
-	} else if leaderState, ok := getLeaderState(); ok {
-		status = classifyStatus(leaderState)
-	}
-
+	status := t.taskExitStatus()
 	if err := t.db.CompleteTrialRun(t.id, t.runID); err != nil {
 		ctx.Log().WithError(err).Error("failed to mark trial run completed")
 	}
@@ -853,37 +820,64 @@ func (t *trial) terminated(ctx *actor.Context) {
 	t.allReadySucceeded = false
 	t.terminatedContainers = make(map[cproto.ID]terminatedContainerWithState)
 	t.startedContainers = make(map[cproto.ID]bool)
-	// TODO(XXX): merge in invalid hp logic
 
+	// Check reasons that indicate this termination should be final.
 	switch {
-	case status.Failure == nil:
-		ctx.Log().Info("trial runner stopped successfully")
-		return
-	case t.canceledBeforeReady:
-		ctx.Log().WithField("failure", status.Failure).Info(
-			"ignoring trial runner failure since it was canceled or paused " +
-				"before all containers are connected",
-		)
-		return
+	case t.searcher.finished():
+		ctx.Log().Info("trial is finished")
+		ctx.Self().Stop()
+	case t.restarts == t.config.MaxRestarts():
+		ctx.Log().WithField("failure", status.Failure).Info("trial exceeded max restarts")
+		ctx.Self().Stop()
 	case t.killed:
-		ctx.Log().WithField("failure", status.Failure).Info(
-			"ignoring trial runner failure since it was killed",
-		)
-		return
+		ctx.Log().WithField("failure", status.Failure).Info("trial was killed")
+		ctx.Self().Stop()
+	case model.StoppingStates[t.experimentState]:
+		ctx.Log().Info("trial's experiment is stopping")
+		ctx.Self().Stop()
+	// Check reasons that indicate this termination is OK or expected.
+	case status.Failure == nil && !t.searcher.workRemaining():
+		ctx.Log().Info("trial runner exited successfully after finishing work")
 	case status.Failure.FailureType == aproto.TaskAborted:
-		ctx.Log().Info("trial runner is aborted successfully")
-		return
+		ctx.Log().WithField("failure", status.Failure).Info("trial runner aborted")
+	case t.canceledBeforeReady:
+		// This is just a special case to catch a hard kill that should look/be treated
+		// like a hard kill.
+		ctx.Log().Info("trial runner exited after preempted while unready")
+		t.canceledBeforeReady = false
+	// Default, something went wrong and we should restart and count it as a failure.
+	default:
+		// any task termination that isn't otherwise explainable is considered a restart.
+		ctx.Log().WithField("failure", status.Failure).Errorf(
+			"trial exited with failure (restart %d/%d)", t.restarts, t.config.MaxRestarts(),
+		)
+		t.restarts++
+		if err := t.db.SetTrialRestartCount(t.id, t.restarts); err != nil {
+			ctx.Log().WithError(err).Error("failed to set restart ID")
+		}
 	}
+}
 
-	ctx.Log().Errorf("unexpected failure of trial after restart %d/%d: %v",
-		t.restarts, t.config.MaxRestarts(), status)
-	t.restarts++
-	if err := t.db.SetTrialRestartCount(t.id, t.restarts); err != nil {
-		ctx.Log().WithError(err).Error("failed to set restart ID")
+func (t *trial) taskExitStatus() aproto.ContainerStopped {
+	switch leaderState, ok := t.getLeaderTerminatedState(); {
+	case len(t.startedContainers) == 0:
+		// If there are no containers started executing, consider as aborted.
+		// The trial state will be restart.
+		return aproto.ContainerError(aproto.TaskAborted, errors.New("task aborted"))
+	case ok:
+		return leaderState.exitStatus.ContainerStopped
+	default:
+		return aproto.ContainerError(aproto.AgentError, errors.New("no error status provided"))
 	}
-	if t.restarts <= t.config.MaxRestarts() {
-		ctx.Log().Infof("restarting trial %d", t.id)
+}
+
+func (t trial) getLeaderTerminatedState() (terminatedContainerWithState, bool) {
+	for _, c := range t.terminatedContainers {
+		if c.isLeader {
+			return c, true
+		}
 	}
+	return terminatedContainerWithState{}, false
 }
 
 type (

@@ -614,8 +614,8 @@ func (a *apiServer) CompleteTrialSearcherValidation(
 
 	if err = a.askAtDefaultSystem(exp, trialCompleteOperation{
 		trialID: int(req.TrialId),
-		metric: req.CompletedOperation.SearcherMetric,
-		op:     searcher.ValidateAfterFromProto(rID, req.CompletedOperation.Op),
+		metric:  req.CompletedOperation.SearcherMetric,
+		op:      searcher.ValidateAfterFromProto(rID, req.CompletedOperation.Op),
 	}, nil); err != nil {
 		return nil, err
 	}
@@ -636,7 +636,7 @@ func (a *apiServer) ReportTrialSearcherEarlyExit(
 
 	if err = a.askAtDefaultSystem(exp, trialReportEarlyExit{
 		trialID: int(req.TrialId),
-		reason: workload.ExitedReasonFromProto(req.EarlyExit.Reason),
+		reason:  workload.ExitedReasonFromProto(req.EarlyExit.Reason),
 	}, nil); err != nil {
 		return nil, err
 	}

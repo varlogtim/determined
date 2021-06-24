@@ -98,7 +98,9 @@ func (m *Master) restoreExperiment(expModel *model.Experiment) error {
 
 // restoreTrial takes the a searcher.Create and attempts to restore the trial that would be
 // associated with it. On failure, the trial is just reset to the start and errors are logged.
-func (e *experiment) restoreTrial(ctx *actor.Context, ckpt *model.Checkpoint, state TrialSearcherState) {
+func (e *experiment) restoreTrial(
+	ctx *actor.Context, ckpt *model.Checkpoint, state TrialSearcherState,
+) {
 	l := ctx.Log().WithField("request-id", state.Create.RequestID)
 	l.Info("restoring trial")
 
@@ -139,8 +141,8 @@ func (e *experiment) restoreTrial(ctx *actor.Context, ckpt *model.Checkpoint, st
 		t.processID(*trialID)
 		if _, ok := e.searcher.TrialIDs[state.Create.RequestID]; !ok {
 			ctx.Tell(ctx.Self(), trialCreated{
-				trialID: *trialID,
-				requestID:  state.Create.RequestID,
+				trialID:   *trialID,
+				requestID: state.Create.RequestID,
 			})
 		}
 	}
@@ -184,7 +186,6 @@ var experimentSnapshotShims = map[int]snapshotShimFunc{
 	0: shimExperimentSnapshotV0,
 	1: shimExperimentSnapshotV1,
 	2: shimExperimentSnapshotV2,
-	// TODO(XXX): Write 3 to 4 shim.. or dont?
 }
 
 // shimExperimentSnapshot shims a trial snapshot to the version required by the master,
@@ -192,10 +193,6 @@ var experimentSnapshotShims = map[int]snapshotShimFunc{
 // than the current version (which could happen in a downgrade).
 func shimExperimentSnapshot(snapshot []byte, version int) ([]byte, error) {
 	return shimSnapshot(experimentSnapshotShims, snapshot, version)
-}
-
-func noopShim(snapshot []byte) ([]byte, error) {
-	return snapshot, nil
 }
 
 func shimSnapshot(shims map[int]snapshotShimFunc, snapshot []byte, version int) ([]byte, error) {

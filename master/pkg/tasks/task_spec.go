@@ -304,14 +304,15 @@ func (g GCCheckpoints) ResourcesConfig() expconf.ResourcesConfig {
 
 // StartTrial is a description of a task for running a trial container.
 type StartTrial struct {
-	ExperimentID int
-	TrialID int
-	ExperimentConfig    expconf.ExperimentConfig
-	ModelDefinition     archive.Archive
-	HParams             map[string]interface{}
-	TrialSeed           uint32
-	LatestCheckpoint    *model.Checkpoint
-	AdditionalFiles     archive.Archive
+	ExperimentID     int
+	TrialID          int
+	TaskRunID        int
+	ExperimentConfig expconf.ExperimentConfig
+	ModelDefinition  archive.Archive
+	HParams          map[string]interface{}
+	TrialSeed        uint32
+	LatestCheckpoint *model.Checkpoint
+	AdditionalFiles  archive.Archive
 
 	// This is used to hint the resource manager to override defaults and start
 	// the container in host mode iff it has been scheduled across multiple agents.
@@ -381,6 +382,7 @@ func (s StartTrial) EnvVars(t TaskSpec) map[string]string {
 	return map[string]string{
 		"DET_EXPERIMENT_ID":            fmt.Sprintf("%d", s.ExperimentID),
 		"DET_TRIAL_ID":                 fmt.Sprintf("%d", s.TrialID),
+		"DET_TASK_RUN_ID":              fmt.Sprintf("%d", s.TaskRunID),
 		"DET_TRIAL_SEED":               fmt.Sprintf("%d", s.TrialSeed),
 		"DET_EXPERIMENT_CONFIG":        jsonify(s.ExperimentConfig),
 		"DET_HPARAMS":                  jsonify(s.HParams),

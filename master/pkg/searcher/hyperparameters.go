@@ -8,8 +8,10 @@ import (
 	"github.com/determined-ai/determined/master/pkg/schemas/expconf"
 )
 
+// HParamSample is a sampling of the hyperparameters for a model.
 type HParamSample map[string]interface{}
 
+// GlobalBatchSize returns the `global_batch_size` hyperparameter as an integer.
 func (h HParamSample) GlobalBatchSize() int {
 	// If the hyperparameters.global_batch_size is configured as a const hyperparameter,
 	// we infer its type to be a float but in some cases, its type can be specified and an

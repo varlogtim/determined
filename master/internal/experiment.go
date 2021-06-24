@@ -28,17 +28,17 @@ import (
 // Experiment-specific actor messages.
 type (
 	trialCreated struct {
-		trialID int
+		trialID   int
 		requestID model.RequestID
 	}
 	trialCompleteOperation struct {
 		trialID int
-		op     searcher.ValidateAfter
-		metric float64
+		op      searcher.ValidateAfter
+		metric  float64
 	}
 	trialReportEarlyExit struct {
 		trialID int
-		reason workload.ExitedReason
+		reason  workload.ExitedReason
 	}
 	trialReportProgress struct {
 		requestID model.RequestID
@@ -59,18 +59,19 @@ type (
 	killExperiment struct{}
 )
 
+// TrialSearcherState is the searcher state for a single trial.
 type TrialSearcherState struct {
-	Create searcher.Create
-	Op         searcher.ValidateAfter
+	Create   searcher.Create
+	Op       searcher.ValidateAfter
 	Complete bool
-	Closed     bool
+	Closed   bool
 }
 
 type (
 	experimentState struct {
-		SearcherState  json.RawMessage `json:"searcher_state"`
+		SearcherState      json.RawMessage                        `json:"searcher_state"`
 		TrialSearcherState map[model.RequestID]TrialSearcherState `json:"trial_searcher_state"`
-		BestValidation *float64        `json:"best_validation"`
+		BestValidation     *float64                               `json:"best_validation"`
 	}
 
 	experiment struct {

@@ -3,9 +3,10 @@ package internal
 import (
 	"archive/tar"
 	"fmt"
-	"github.com/determined-ai/determined/master/pkg/searcher"
 	"sort"
 	"time"
+
+	"github.com/determined-ai/determined/master/pkg/searcher"
 
 	"github.com/hashicorp/go-multierror"
 
@@ -34,8 +35,7 @@ import (
 )
 
 const (
-	allReadyTimeoutPeriod  = 10 * time.Minute
-	terminateTimeoutPeriod = time.Minute
+	allReadyTimeoutPeriod = 10 * time.Minute
 )
 
 const (
@@ -85,12 +85,6 @@ type (
 		runID int
 	}
 
-	// When we issue a TERMINATE workload, we send a delayed terminateTimeout message with a record
-	// of the number of RunID that the trial had at the time we issued the TERMINATE. If we
-	// receive the terminateTimeout message and t.RunID has not changed, we forcibly kill the
-	// running containers.
-	terminateTimeout struct{ runID int }
-
 	// trialWatchRendezvousInfoReq begins watching for rendezvous info.
 	// When all the containers are ready, the trial will send all the
 	// peer addresses on the channel in the response.
@@ -109,8 +103,8 @@ type (
 // trial at the time termination was received. That information is analyzed when determining if a
 // trial should be considered to have errored or not.
 type terminatedContainerWithState struct {
-	exitStatus                 sproto.TaskContainerStopped
-	isLeader                   bool
+	exitStatus sproto.TaskContainerStopped
+	isLeader   bool
 }
 
 // trial is an actor which is responsible for handling:
@@ -123,16 +117,16 @@ type terminatedContainerWithState struct {
 // container, or the desired state as described by searcher operations; that is offloaded onto the
 // workloadSequencer.
 type trial struct {
-	id           int
-	idSet        bool
+	id    int
+	idSet bool
 
-	rm              *actor.Ref
-	logger          *actor.Ref
-	db              *db.PgDB
-	experimentState model.State
-	experiment      *model.Experiment
-	config          expconf.ExperimentConfig
-	modelDefinition archive.Archive
+	rm                  *actor.Ref
+	logger              *actor.Ref
+	db                  *db.PgDB
+	experimentState     model.State
+	experiment          *model.Experiment
+	config              expconf.ExperimentConfig
+	modelDefinition     archive.Archive
 	warmStartCheckpoint *model.Checkpoint
 
 	// The following fields tracks the interaction with the resource providers.
@@ -175,7 +169,7 @@ type trial struct {
 	runID int
 
 	canceledBeforeReady bool
-	killed bool
+	killed              bool
 }
 
 // newTrial creates a trial which will try to schedule itself after it receives its first workload.
@@ -186,14 +180,14 @@ func newTrial(
 	state TrialSearcherState,
 ) *trial {
 	return &trial{
-		rm:                    exp.rm,
-		logger:                exp.trialLogger,
-		db:                    exp.db,
-		experimentState:       exp.State,
-		experiment:            exp.Experiment,
-		config:                config,
-		modelDefinition:       exp.modelDefinition,
-		warmStartCheckpoint:  warmStartCheckpoint,
+		rm:                  exp.rm,
+		logger:              exp.trialLogger,
+		db:                  exp.db,
+		experimentState:     exp.State,
+		experiment:          exp.Experiment,
+		config:              config,
+		modelDefinition:     exp.modelDefinition,
+		warmStartCheckpoint: warmStartCheckpoint,
 
 		startedContainers:    make(map[cproto.ID]bool),
 		containers:           make(map[cproto.ID]cproto.Container),
@@ -217,8 +211,6 @@ func (t *trial) Receive(ctx *actor.Context) error {
 		if t.idSet {
 			// t.idSet in actor.PreStart indicates we are in a restart.
 			ctx.AddLabel("trial-id", t.id)
-			// TODO(XXX): actually increment this
-			// TODO(XXX): pack DET_TASK_RUN_ID into container
 			runID, restarts, err := t.db.TrialRunIDAndRestartCount(t.id)
 			if err != nil {
 				return errors.Wrap(err, "restoring old trial state")
@@ -295,7 +287,6 @@ func (t *trial) Receive(ctx *actor.Context) error {
 
 	if t.experimentState != model.ActiveState {
 		_ = t.releaseResource(ctx)
-		return nil
 	}
 
 	if t.task == nil && t.searcher.workRemaining() && t.experimentState == model.ActiveState {
@@ -357,7 +348,9 @@ func (t *trial) registerRendezvousWatcher(
 	t.lastContainerConnectedTime = time.Now()
 	if !t.allReady() {
 		actors.NotifyAfter(ctx, allReadyTimeoutPeriod, allReadyTimeout{runID: t.runID})
-		ctx.Log().Debug("not sending rendezvous information because not all trial containers are connected")
+		ctx.Log().Debug(
+			"not sending rendezvous information because not all trial containers are connected",
+		)
 	} else {
 		t.pushRendezvous(ctx)
 	}
@@ -403,12 +396,6 @@ func (t *trial) runningReceive(ctx *actor.Context) error {
 					"that some pods will never be scheduled without adding compute " +
 					"resources or pausing / killing other experiments in the cluster",
 			})
-		}
-
-	case terminateTimeout:
-		if msg.runID == t.runID {
-			ctx.Log().Info("forcibly terminating unresponsive trial after timeout expired")
-			t.terminate(ctx)
 		}
 
 	case actor.ChildStopped:
@@ -552,16 +539,17 @@ func (t *trial) processAllocated(
 		taskSpec.AgentUserGroup = t.agentUserGroup
 		taskSpec.TaskToken = taskToken
 		taskSpec.SetInner(&tasks.StartTrial{
-			ExperimentID: t.experiment.ID,
-			TrialID: t.id,
-			ExperimentConfig:    schemas.Copy(t.config).(expconf.ExperimentConfig),
-			ModelDefinition:     t.modelDefinition,
-			HParams:             t.searcher.hparams(),
-			TrialSeed:           t.searcher.seed(),
-			LatestCheckpoint:    latestCheckpoint,
-			AdditionalFiles:     additionalFiles,
-			IsMultiAgent:        len(t.allocations) > 1,
-			Rank:                rank,
+			ExperimentID:     t.experiment.ID,
+			TrialID:          t.id,
+			ExperimentConfig: schemas.Copy(t.config).(expconf.ExperimentConfig),
+			TaskRunID:        t.runID,
+			ModelDefinition:  t.modelDefinition,
+			HParams:          t.searcher.hparams(),
+			TrialSeed:        t.searcher.seed(),
+			LatestCheckpoint: latestCheckpoint,
+			AdditionalFiles:  additionalFiles,
+			IsMultiAgent:     len(t.allocations) > 1,
+			Rank:             rank,
 		})
 		a.Start(ctx, taskSpec)
 	}
@@ -704,8 +692,8 @@ func (t *trial) processContainerTerminated(
 ) {
 	ctx.Log().Infof("found container terminated: %s", msg.Container.ID)
 	t.terminatedContainers[msg.Container.ID] = terminatedContainerWithState{
-		exitStatus:                 *msg.ContainerStopped,
-		isLeader:                   t.containerRanks[msg.Container.ID] == 0,
+		exitStatus: *msg.ContainerStopped,
+		isLeader:   t.containerRanks[msg.Container.ID] == 0,
 	}
 
 	_, ok := t.containers[msg.Container.ID]

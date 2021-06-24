@@ -1221,11 +1221,9 @@ WHERE id = :id`, setClause(toUpdate)), trial)
 }
 
 // UpdateTrialRunnerState updates a trial runner's state.
-// TODO(XXX): pepper this call all over trial.go once it won't just lead to oodles of conflicts.
 func (db *PgDB) UpdateTrialRunnerState(id int, state string) error {
 	return db.UpdateTrialRunnerMetadata(id, &trialv1.TrialRunnerMetadata{State: state})
 }
-
 
 // UpdateTrialRunnerMetadata updates a trial's metadata about its runner.
 func (db *PgDB) UpdateTrialRunnerMetadata(id int, md *trialv1.TrialRunnerMetadata) error {
@@ -1412,14 +1410,12 @@ VALUES (
 	return nil
 }
 
-type TaskType string
-
 // AddTrialRun saves a new run for the trial.
 func (db *PgDB) AddTrialRun(trialID, runID int) error {
 	_, err := db.sql.Exec(`
-INSERT INTO task_runs (task_type, task_type_fk_id, id)
+INSERT INTO task_runs (task_type, task_type_fk_id, run_id)
 VALUES ('TRIAL', $1, $2)
-ON CONFLICT (task_type, task_type_fk_id, id)
+ON CONFLICT (task_type, task_type_fk_id, run_id)
 DO UPDATE SET start_time = now()`, trialID, runID)
 	return err
 }
@@ -1431,7 +1427,7 @@ UPDATE task_runs
 SET end_time = now()
 WHERE task_type = 'TRIAL'
   AND task_type_fk_id = $1
-  AND id = $2`, trialID, runID)
+  AND run_id = $2`, trialID, runID)
 	return err
 }
 
@@ -1446,7 +1442,7 @@ WHERE task_type = 'TRIAL'
 	return err
 }
 
-// TrialRunAndRestartCount returns the run ID and restart count for a trial.
+// TrialRunIDAndRestartCount returns the run ID and restart count for a trial.
 func (db *PgDB) TrialRunIDAndRestartCount(trialID int) (int, int, error) {
 	var runID, restart int
 	if err := db.sql.QueryRowx(`
@@ -1691,7 +1687,6 @@ func derivePriorWorkloadEndTime(
 	ctx context.Context, tx *sqlx.Tx, trialID int32,
 ) (time.Time, error) {
 	var endTime time.Time
-	// TODO(XXX): task_runs => tasks
 	if err := tx.QueryRowxContext(ctx, `
 SELECT coalesce(greatest(
 	(SELECT max(end_time) FROM raw_steps WHERE trial_id = $1),

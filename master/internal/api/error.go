@@ -38,17 +38,17 @@ func JSONErrorHandler(err error, c echo.Context) {
 }
 
 var (
-	// ValidationError is the inner error for errors that convert to a 400. Currently
+	// ErrInvalid is the inner error for errors that convert to a 400. Currently
 	// only apiServer.askAtDefaultSystem respects this.
-	ValidationError = errors.New("bad request")
+	ErrInvalid = errors.New("bad request")
 	// ErrNotFound is the inner error for errors that convert to a 404.
 	ErrNotFound = errors.New("not found")
 )
 
-// AsValidationError returns an error that wraps ValidationError, so that errors.Is can identify it.
+// AsValidationError returns an error that wraps ErrInvalid, so that errors.Is can identify it.
 func AsValidationError(msg string, args ...interface{}) error {
 	return errors.Wrapf(
-		ValidationError,
+		ErrInvalid,
 		msg,
 		args...,
 	)

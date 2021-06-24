@@ -73,7 +73,6 @@ const (
 // Trial-specific actor messages.
 type (
 	killTrial    struct{}
-	trialAborted struct{}
 
 	// It is possible that it takes very long for all containers to be connected after the first
 	// container is connected. This might happen when the k8s cluster waits for new instances
@@ -222,11 +221,6 @@ func (t *trial) Receive(ctx *actor.Context) error {
 
 	case sproto.ContainerLog:
 		t.insertLog(ctx, msg.Container, msg.Message())
-
-	case trialAborted:
-		// This is to handle trial being aborted. It does nothing here but requires
-		// the code below this switch statement to handle releasing resources in
-		// the scheduler. This should be refactored into the terminating logic.
 
 	case TrialSearcherState:
 		t.searcher.setState(msg)
@@ -755,7 +749,6 @@ func (t *trial) terminate(ctx *actor.Context) {
 	case len(t.allocations) == 0:
 		ctx.Log().Info("aborting trial before resources are allocated in response to kill")
 		t.terminated(ctx)
-		ctx.Tell(ctx.Self(), trialAborted{})
 	default:
 		ctx.Log().Info("forcibly terminating trial")
 		if t.task != nil && t.allocations != nil {
@@ -771,7 +764,6 @@ func (t *trial) preempt(ctx *actor.Context) {
 	case len(t.allocations) == 0:
 		ctx.Log().Info("aborting trial before resources are allocated in response to preemption")
 		t.terminated(ctx)
-		ctx.Tell(ctx.Self(), trialAborted{})
 	default:
 		ctx.Log().Info("gracefully terminating trial")
 		t.preemption.preempt()

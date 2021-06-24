@@ -5,8 +5,8 @@ ARTIFACTS_DIR := /tmp/artifacts
 
 # Model-hub library environments will be built on top of the default GPU and CPU images in master/pkg/model/defaults.go
 DEFAULT_GPU_IMAGE := determinedai/environments:cuda-11.1-pytorch-1.9-lightning-1.3-tf-2.4-gpu-744337d
-TRANSFORMERS_VERSION := 4.8.0
-DATASETS_VERSION := 1.8.0
+TRANSFORMERS_VERSION := 4.6.1
+DATASETS_VERSION := 1.7.0
 TRANSFORMERS_ENVIRONMENT_ROOT := determinedai/model-hub-transformers
 
 # Example dirs

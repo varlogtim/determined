@@ -831,6 +831,7 @@ class S3ConfigV0(schemas.SchemaBase):
 class GCSConfigV0(schemas.SchemaBase):
     _id = "http://determined.ai/schemas/expconf/v0/gcs.json"
     bucket: str
+    credentials_file: str
     save_experiment_best: Optional[int] = None
     save_trial_best: Optional[int] = None
     save_trial_latest: Optional[int] = None

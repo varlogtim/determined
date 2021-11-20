@@ -71,6 +71,14 @@ def build(config: Dict[str, Any], container_path: Optional[str]) -> StorageManag
             )
         if "container" not in config:
             raise ValueError("Container name must be specified for Azure Blob Storage.")
+    elif identifier == "gcs":
+        credentials_file = config.pop("credentials_file", None)
+        if credentials_file is not None:
+            credentials_file_path = os.path.join(os.getcwd(), "gcs_credentials.json")
+            with open(credentials_file_path, "w") as file:
+                file.write(credentials_file)
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_file_path
+            print(f"TTUCKER: wrote credentials file: {credentials_file}")
 
     config.pop("tensorboard_path", None)
     config.pop("checkpoint_path", None)

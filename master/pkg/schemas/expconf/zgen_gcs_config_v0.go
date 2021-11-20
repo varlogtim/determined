@@ -19,6 +19,14 @@ func (g *GCSConfigV0) SetBucket(val string) {
 	g.RawBucket = &val
 }
 
+func (g GCSConfigV0) CredentialsFile() *string {
+	return g.RawCredentialsFile
+}
+
+func (g *GCSConfigV0) SetCredentialsFile(val *string) {
+	g.RawCredentialsFile = val
+}
+
 func (g GCSConfigV0) ParsedSchema() interface{} {
 	return schemas.ParsedGCSConfigV0()
 }

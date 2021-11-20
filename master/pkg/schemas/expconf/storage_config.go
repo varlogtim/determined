@@ -151,7 +151,8 @@ func (t *S3ConfigV0) Validate() []error {
 //go:generate ../gen.sh
 // GCSConfigV0 configures storing checkpoints on GCS.
 type GCSConfigV0 struct {
-	RawBucket *string `json:"bucket"`
+	RawBucket          *string `json:"bucket"`
+	RawCredentialsFile *string `json:"credentials_file,omitempty"`
 }
 
 //go:generate ../gen.sh

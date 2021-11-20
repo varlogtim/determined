@@ -21,6 +21,13 @@
             ],
             "default": null
         },
+        "credentials_file": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "default": null
+        },
         "save_experiment_best": {
             "type": [
                 "integer",

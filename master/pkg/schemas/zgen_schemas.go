@@ -442,6 +442,7 @@ var (
         "bucket": true,
         "checkpoint_path": true,
         "connection_string": true,
+        "credentials_file": true,
         "container": true,
         "container_path": true,
         "credential": true,
@@ -1284,6 +1285,13 @@ var (
             "const": "gcs"
         },
         "bucket": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "default": null
+        },
+        "credentials_file": {
             "type": [
                 "string",
                 "null"

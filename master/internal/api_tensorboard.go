@@ -41,6 +41,9 @@ const (
 	minTensorBoardPort        = 2600
 	maxTensorBoardPort        = minTensorBoardPort + 299
 	tensorboardEntrypointFile = "/run/determined/tensorboard/tensorboard-entrypoint.sh"
+	expConfPath               = "/run/determined/tensorboard/experiment_config.json"
+	// XXX TTUCKER, do we need to full experiment config or just the storage_config?
+	// XXX Also, look into the option of just including all the configs.
 )
 
 var tensorboardReadinessPattern = regexp.MustCompile("TensorBoard contains metrics")
@@ -177,6 +180,7 @@ func (a *apiServer) LaunchTensorboard(
 			logBasePath = c.PathInContainer()
 
 		case expconf.S3Config:
+			// XXX TTUCKER, we are getting this from the JSON config written
 			if c.AccessKey() != nil {
 				uniqEnvVars["AWS_ACCESS_KEY_ID"] = *c.AccessKey()
 			}
@@ -288,6 +292,7 @@ func (a *apiServer) LaunchTensorboard(
 			etc.MustStaticFile(etc.TensorboardEntryScriptResource), 0700,
 			tar.TypeReg,
 		),
+		spec.Base.AgentUserGroup.OwnedArchiveItem(expConfPath, confBytes, 0700, tar.TypeReg),
 	}
 
 	if err = check.Validate(req.Config); err != nil {

@@ -150,7 +150,8 @@ func (S3Config) Validate() []error { return nil }
 
 // GCSConfig configures storing checkpoints on GCS.
 type GCSConfig struct {
-	Bucket string `json:"bucket"`
+	Bucket          string `json:"bucket"`
+	CredentialsFile string `json:"credentials_file,omitempty"`
 }
 
 // Validate implements the check.Validatable interface.
